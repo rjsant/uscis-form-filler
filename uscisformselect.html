@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>USCIS Form Selection</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Select a USCIS Form</h1>
+        <label for="formSelect">Choose a form:</label>
+        <select id="formSelect">
+            <option value="">-- Select a form --</option>
+            <option value="I-130">Form I-130</option>
+            <option value="I-864">Form I-864</option>
+            <option value="I-912">Form I-912</option>
+            <option value="N-400">Form N-400</option>
+            <option value="N-600">Form N-600</option>
+        </select>
+        <div class="btn-container">
+            <button onclick="goBack()">Back</button>
+            <button onclick="redirectToFiller()">Proceed</button>
+        </div>
+    </div>
+    <script>function redirectToFiller() {
+            const selectedForm = document.getElementById("formSelect").value;
+            if (selectedForm) {
+                window.location.href = `uscisfiller.html?form=${selectedForm}`;
+            } else {
+                alert("Please select a form before proceeding.");
+            }
+        }
+        function goBack() {
+            window.location.href = "uscisfront.html";
+        }</script>
+</body>
+</html>
