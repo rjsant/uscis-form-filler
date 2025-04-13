@@ -106,6 +106,7 @@
       margin: 1rem 0;
     }
 
+    /* The Update Preview button is now always visible */
     #manualPreviewBtn {
       margin-bottom: 1rem;
     }
@@ -140,14 +141,14 @@
 
       <label>Select a Form:
         <select id="formSelect">
-                    <option value="i912_conv.pdf">I-912</option>
+          <option value="i912_conv.pdf" selected>I-912</option>
           <option value="n400_conv.pdf">N-400</option>
           <option value="n600_conv.pdf">N-600</option>
         </select>
       </label>
 
-      
-      <button id="manualPreviewBtn" style="display: none;">Update Preview</button>
+      <!-- Update Preview button is now visible -->
+      <button type="button" id="manualPreviewBtn">Update Preview</button>
 
       <form id="uscis-form">
         <fieldset>
@@ -195,7 +196,6 @@
   <script>
     const pdfPreview = document.getElementById("pdfPreview");
     const formSelect = document.getElementById("formSelect");
-    const liveToggle = document.getElementById("liveToggle");
     const manualBtn = document.getElementById("manualPreviewBtn");
     const resizer = document.getElementById("resizer");
     const pdfPane = document.getElementById("pdfPane");
@@ -260,7 +260,7 @@
       pdfPreview.src = url;
     }
 
-    
+    // When the form is submitted, update the preview and download the updated PDF.
     document.getElementById("uscis-form").addEventListener("submit", async e => {
       e.preventDefault();
       await updatePreview();
@@ -274,13 +274,11 @@
       loadPDF(e.target.value);
     });
 
-    liveToggle.addEventListener("change", () => {
-      
-    });
-
     manualBtn.addEventListener("click", updatePreview);
 
-    loadPDF(formSelect.value);
+    document.addEventListener("DOMContentLoaded", () => {
+      if (formSelect && formSelect.value) loadPDF(formSelect.value);
+    });
   </script>
 </body>
 </html>
