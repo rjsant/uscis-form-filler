@@ -2,12 +2,10 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>USCIS PDF Filler - Responsive</title>
+  <title>USCIS PDF Filler – Multi-Page Field Coordinates</title>
   <script src="https://unpkg.com/pdf-lib/dist/pdf-lib.min.js"></script>
   <style>
-    * {
-      box-sizing: border-box;
-    }
+    * { box-sizing: border-box; }
     body {
       margin: 0;
       font-family: sans-serif;
@@ -15,14 +13,12 @@
       flex-direction: column;
       height: 100vh;
     }
-
     .container {
       display: flex;
       flex: 1;
       overflow: hidden;
       flex-direction: row;
     }
-
     #pdfPane {
       min-width: 250px;
       max-width: 90vw;
@@ -32,60 +28,33 @@
       display: flex;
       flex-direction: column;
     }
-
     iframe {
       flex: 1;
       width: 100%;
       border: 1px solid #ccc;
     }
-
     #formPane {
       flex: 1;
       padding: 1rem;
       overflow-y: auto;
       background: #f7f7f7;
     }
-
     .resizer {
       width: 5px;
       background: #ccc;
       cursor: ew-resize;
     }
-
-    #overlay {
-      display: none;
-      position: fixed;
-      top: 0; left: 0; right: 0; bottom: 0;
-      z-index: 9999;
-      cursor: ew-resize;
-    }
-
     fieldset {
       margin-bottom: 1rem;
       background: #fff;
       border: 1px solid #ccc;
       padding: 1rem;
     }
-
-    label {
-      display: block;
-      margin-bottom: 0.5rem;
-    }
-
-    .inline-inputs {
-      display: flex;
-      gap: 0.5em;
-    }
-
-    .inline-inputs input {
-      width: 3em;
-    }
-
+    label { display: block; margin-bottom: 0.5rem; }
     input, select, button {
       padding: 0.4em;
       font-size: 1em;
     }
-
     button {
       background-color: #007bff;
       color: white;
@@ -94,51 +63,17 @@
       cursor: pointer;
       margin-top: 1rem;
     }
-
-    button:hover {
-      background-color: #0056b3;
-    }
-
-    .switch {
-      display: flex;
-      align-items: center;
-      gap: 0.5em;
-      margin: 1rem 0;
-    }
-
-    /* The Update Preview button is now always visible */
-    #manualPreviewBtn {
-      margin-bottom: 1rem;
-    }
-
-    @media (max-width: 768px) {
-      .container {
-        flex-direction: column;
-      }
-      #pdfPane {
-        width: 100%;
-        min-height: 40vh;
-        max-height: 60vh;
-      }
-      .resizer {
-        height: 5px;
-        width: 100%;
-        cursor: ns-resize;
-      }
-    }
+    button:hover { background-color: #0056b3; }
   </style>
 </head>
 <body>
-  <div id="overlay"></div>
-
   <div class="container">
     <div id="pdfPane">
       <iframe id="pdfPreview"></iframe>
     </div>
     <div class="resizer" id="resizer"></div>
     <div id="formPane">
-      <h2>USCIS Form</h2>
-
+      <h2>USCIS PDF Filler – Multi-Page Coordinates</h2>
       <label>Select a Form:
         <select id="formSelect">
           <option value="i912_conv.pdf" selected>I-912</option>
@@ -146,48 +81,30 @@
           <option value="n600_conv.pdf">N-600</option>
         </select>
       </label>
-
-      <!-- Update Preview button is now visible -->
-      <button type="button" id="manualPreviewBtn">Update Preview</button>
-
+      <fieldset>
+        <legend>Name</legend>
+        <label>First Name: <input type="text" id="firstName" /></label>
+        <label>Middle Name: <input type="text" id="middleName" /></label>
+        <label>Last Name: <input type="text" id="lastName" /></label>
+      </fieldset>
+      <fieldset>
+        <legend>SSN</legend>
+        <input type="text" id="ssn" maxlength="11" placeholder="123-45-6789"/>
+      </fieldset>
+      <fieldset>
+        <legend>Contact Info</legend>
+        <label>Phone: <input type="text" id="phone" maxlength="15" placeholder="555-123-4567"/></label>
+        <label>Email: <input type="email" id="email" /></label>
+      </fieldset>
+      <fieldset>
+        <legend>Address</legend>
+        <label>Street: <input type="text" id="mailAddress" /></label>
+        <label>City: <input type="text" id="mailCity" /></label>
+        <label>State: <input type="text" id="mailState" /></label>
+        <label>ZIP: <input type="text" id="mailZip" /></label>
+      </fieldset>
+      <button type="button" id="updatePreviewBtn">Update Preview</button>
       <form id="uscis-form">
-        <fieldset>
-          <legend>Name</legend>
-          <label>First Name: <input type="text" id="firstName" /></label>
-          <label>Middle Name: <input type="text" id="middleName" /></label>
-          <label>Last Name: <input type="text" id="lastName" /></label>
-        </fieldset>
-
-        <fieldset>
-          <legend>SSN</legend>
-          <input type="text" id="ssn" maxlength="11" placeholder="123-45-6789"/>
-        </fieldset>
-
-        <fieldset>
-          <legend>Sex</legend>
-          <label><input type="radio" name="sex" value="M" /> Male</label>
-          <label><input type="radio" name="sex" value="F" /> Female</label>
-          <label><input type="radio" name="sex" value="N" /> Nonbinary</label>
-        </fieldset>
-
-        <fieldset>
-          <legend>Phone</legend>
-          <input type="text" id="phone" maxlength="15" placeholder="555-123-4567"/>
-        </fieldset>
-
-        <fieldset>
-          <legend>Contact Info</legend>
-          <label>Email: <input type="email" id="email" /></label>
-        </fieldset>
-
-        <fieldset>
-          <legend>Address</legend>
-          <label>Street: <input type="text" id="mailAddress" /></label>
-          <label>City: <input type="text" id="mailCity" /></label>
-          <label>State: <input type="text" id="mailState" /></label>
-          <label>ZIP: <input type="text" id="mailZip" /></label>
-        </fieldset>
-
         <button type="submit">Download Filled PDF</button>
       </form>
     </div>
@@ -196,22 +113,76 @@
   <script>
     const pdfPreview = document.getElementById("pdfPreview");
     const formSelect = document.getElementById("formSelect");
-    const manualBtn = document.getElementById("manualPreviewBtn");
+    const updatePreviewBtn = document.getElementById("updatePreviewBtn");
     const resizer = document.getElementById("resizer");
     const pdfPane = document.getElementById("pdfPane");
-    const overlay = document.getElementById("overlay");
 
     let originalPdfBytes = null;
     let font = null;
+
+    // Field coordinate mappings with page information.
+    // Page numbers start at 0 (first page is page 0, second page is page 1, etc.)
+    const fieldCoords = {
+      "i912_conv.pdf": {
+        firstName:  { page: 0, x: 280,  y: 178 },//good
+        middleName: { page: 0, x: 445, y: 178 },//good
+        lastName:   { page: 0, x: 57, y: 178 },//good
+        ssn:        { page: 1, x: 235,  y: 705 },//good
+        phone:      { page: 0, x: 50,  y: 640 },
+        email:      { page: 0, x: 50,  y: 625 },
+        // Assume mailing address fields are on page 2 (index 1)
+        mailAddress:{ page: 1, x: 50,  y: 610 },
+        mailCity:   { page: 1, x: 50,  y: 595 },
+        mailState:  { page: 1, x: 200, y: 595 },
+        mailZip:    { page: 1, x: 350, y: 595 }
+      },
+      "n400_conv.pdf": {
+        firstName:  { page: 0, x: 280,  y: 136 },//good
+        middleName: { page: 0, x: 445, y: 136 },//good
+        lastName:   { page: 0, x: 63, y: 136 },//good
+        ssn:        { page: 1, x: 290,  y: 135 },//good
+        phone:      { page: 0, x: 70,  y: 630 },
+        email:      { page: 0, x: 70,  y: 615 },
+        // Assume mailing address fields are on page 2 (index 1)
+        mailAddress:{ page: 1, x: 70,  y: 600 },
+        mailCity:   { page: 1, x: 70,  y: 585 },
+        mailState:  { page: 1, x: 220, y: 585 },
+        mailZip:    { page: 1, x: 370, y: 585 }
+      },
+      "n600_conv.pdf": {
+        firstName:  { page: 0, x: 80,  y: 720 },
+        middleName: { page: 0, x: 170, y: 720 },
+        lastName:   { page: 0, x: 320, y: 720 },
+        ssn:        { page: 0, x: 80,  y: 690 },
+        phone:      { page: 0, x: 80,  y: 670 },
+        email:      { page: 0, x: 80,  y: 655 },
+        // Assume mailing address fields are on page 2 (index 1)
+        mailAddress:{ page: 1, x: 80,  y: 640 },
+        mailCity:   { page: 1, x: 80,  y: 625 },
+        mailState:  { page: 1, x: 230, y: 625 },
+        mailZip:    { page: 1, x: 380, y: 625 }
+      }
+    };
+
+    // Resizer code for pdfPane width
     let isResizing = false;
+    const resizeOverlay = document.createElement('div');
+    resizeOverlay.style.display = 'none';
+    resizeOverlay.style.position = 'fixed';
+    resizeOverlay.style.top = 0;
+    resizeOverlay.style.left = 0;
+    resizeOverlay.style.right = 0;
+    resizeOverlay.style.bottom = 0;
+    resizeOverlay.style.cursor = 'ew-resize';
+    resizeOverlay.style.zIndex = 9999;
+    document.body.appendChild(resizeOverlay);
 
     resizer.addEventListener('mousedown', (e) => {
       isResizing = true;
-      overlay.style.display = 'block';
+      resizeOverlay.style.display = 'block';
       document.body.style.cursor = 'ew-resize';
       e.preventDefault();
     });
-
     document.addEventListener('mousemove', (e) => {
       if (!isResizing) return;
       const newWidth = e.clientX;
@@ -219,49 +190,63 @@
         pdfPane.style.width = `${newWidth}px`;
       }
     });
-
     document.addEventListener('mouseup', () => {
       if (isResizing) {
         isResizing = false;
-        overlay.style.display = 'none';
+        resizeOverlay.style.display = 'none';
         document.body.style.cursor = 'default';
       }
     });
 
+    // Load the selected PDF file (store its bytes and display in iframe)
     async function loadPDF(filename) {
       const res = await fetch(filename);
       originalPdfBytes = await res.arrayBuffer();
+      // Preload the PDF without modifications
       await updatePreview();
     }
 
+    // Update the PDF preview by drawing text on multiple pages using the mapping.
     async function updatePreview() {
       if (!originalPdfBytes) return;
       const pdfDoc = await PDFLib.PDFDocument.load(originalPdfBytes, { ignoreEncryption: true });
-      const page = pdfDoc.getPages()[0];
+      const pages = pdfDoc.getPages();
       if (!font) font = await pdfDoc.embedFont(PDFLib.StandardFonts.Helvetica);
 
-      const draw = (text, x, y) => page.drawText(text, { x, y, size: 10, font });
-      const val = id => document.getElementById(id)?.value || "";
+      const currentForm = formSelect.value;
+      const coords = fieldCoords[currentForm];
 
-      draw(val("firstName"), 50, 700);
-      draw(val("middleName"), 150, 700);
-      draw(val("lastName"), 300, 700);
-      draw(document.querySelector("input[name='sex']:checked")?.value || "", 50, 680);
-      draw(val("ssn"), 50, 660);
-      draw(val("phone"), 50, 640);
-      draw(val("email"), 50, 625);
-      draw(val("mailAddress"), 50, 610);
-      draw(val("mailCity"), 50, 595);
-      draw(val("mailState"), 200, 595);
-      draw(val("mailZip"), 350, 595);
+      // Helper function to draw a field on its designated page
+      const drawField = (fieldId, fieldName) => {
+        const value = document.getElementById(fieldId).value;
+        if (coords && coords[fieldName] && value) {
+          const { page, x, y } = coords[fieldName];
+          if (pages[page]) {
+            pages[page].drawText(value, { x, y, size: 10, font });
+          }
+        }
+      };
 
-      const pdfBytes = await pdfDoc.save();
+      // Draw each field using its designated coordinates and page from the mapping.
+      drawField("firstName", "firstName");
+      drawField("middleName", "middleName");
+      drawField("lastName", "lastName");
+      drawField("ssn", "ssn");
+      drawField("phone", "phone");
+      drawField("email", "email");
+      drawField("mailAddress", "mailAddress");
+      drawField("mailCity", "mailCity");
+      drawField("mailState", "mailState");
+      drawField("mailZip", "mailZip");
+
+      // Save the modified PDF. We disable object streams for improved Acrobat compatibility.
+      const pdfBytes = await pdfDoc.save({ useObjectStreams: false });
       const url = URL.createObjectURL(new Blob([pdfBytes], { type: "application/pdf" }));
       pdfPreview.src = url;
     }
 
-    // When the form is submitted, update the preview and download the updated PDF.
-    document.getElementById("uscis-form").addEventListener("submit", async e => {
+    // When the form is submitted, update the preview and download the filled PDF.
+    document.getElementById("uscis-form").addEventListener("submit", async (e) => {
       e.preventDefault();
       await updatePreview();
       const a = document.createElement("a");
@@ -270,14 +255,19 @@
       a.click();
     });
 
-    formSelect.addEventListener("change", e => {
-      loadPDF(e.target.value);
+    // Update preview when clicking the "Update Preview" button.
+    updatePreviewBtn.addEventListener("click", updatePreview);
+
+    // Load a new PDF when the form selection changes.
+    formSelect.addEventListener("change", () => {
+      loadPDF(formSelect.value);
     });
 
-    manualBtn.addEventListener("click", updatePreview);
-
+    // On initial load, load the default PDF.
     document.addEventListener("DOMContentLoaded", () => {
-      if (formSelect && formSelect.value) loadPDF(formSelect.value);
+      if (formSelect && formSelect.value) {
+        loadPDF(formSelect.value);
+      }
     });
   </script>
 </body>
