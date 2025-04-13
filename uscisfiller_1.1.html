@@ -54,7 +54,10 @@
       border: 1px solid #ccc;
       padding: 1rem;
     }
-    label { display: block; margin-bottom: 0.5rem; }
+    label { 
+      display: block;
+      margin-bottom: 0.5rem;
+    }
     input, select, button {
       padding: 0.4em;
       font-size: 1em;
@@ -73,7 +76,7 @@
       margin-top: 10px;
       font-weight: bold;
     }
-
+    
     /* Top Controls: dark mode toggle and text size controls */
     #topControls {
       position: fixed;
@@ -93,8 +96,8 @@
       font-size: 1em;
       color: #333;
     }
-
-    /* Dark mode toggle (remains inside #topControls) */
+    
+    /* Dark mode toggle styling */
     .switch {
       position: relative;
       display: inline-block;
@@ -166,6 +169,15 @@
       color: #e0e0e0 !important;
       border: 1px solid #555 !important;
     }
+    /* Force select elements in dark mode to have a custom dropdown arrow */
+    body.dark-mode select {
+      -webkit-appearance: none;
+      -moz-appearance: none;
+      appearance: none;
+      background: #333 url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 4 5'><path fill='%23e0e0e0' d='M2 0L0 2h4z'/></svg>") no-repeat right 10px center;
+      background-size: 10px 12px;
+	  color: #e0e0e0;
+    }
     body.dark-mode fieldset {
       background: #222 !important;
       border: 1px solid #222 !important;
@@ -182,7 +194,6 @@
     body.dark-mode #topControls span {
       color: #e0e0e0;
     }
-
   </style>
 </head>
 <body>
@@ -336,7 +347,7 @@
       if (currentFontSize > 10) {
         currentFontSize -= 1;
         textSizeDisplay.innerText = currentFontSize;
-        // Change the website text size except for the top controls
+        // Change the website text size in the main content areas, excluding topControls
         document.querySelector("#formPane").style.fontSize = currentFontSize + "px";
         document.querySelector("#pdfPane").style.fontSize = currentFontSize + "px";
       }
@@ -345,7 +356,7 @@
       if (currentFontSize < 30) {
         currentFontSize += 1;
         textSizeDisplay.innerText = currentFontSize;
-        // Change the website text size except for the top controls
+        // Change the website text size in the main content areas, excluding topControls
         document.querySelector("#formPane").style.fontSize = currentFontSize + "px";
         document.querySelector("#pdfPane").style.fontSize = currentFontSize + "px";
       }
@@ -363,7 +374,6 @@
     let validateOnUpdate = false;
 
     // Field coordinate mappings.
-    // For each form, mailZip and mailPostal share the same coordinates.
     const fieldCoords = {
       "i912_conv.pdf": {
         firstName:  { page: 0, x: 280,  y: 178 },
