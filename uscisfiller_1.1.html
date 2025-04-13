@@ -1,0 +1,717 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>USCIS PDF Filler</title>
+  <script src="https://unpkg.com/pdf-lib/dist/pdf-lib.min.js"></script>
+  <style>
+    /* Basic styling */
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: sans-serif;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      background: #fff;
+      color: #000;
+      font-size: 16px; /* default website text size */
+    }
+    .container {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+      flex-direction: row;
+    }
+    #pdfPane {
+      min-width: 250px;
+      max-width: 90vw;
+      width: 50%;
+      padding: 1rem;
+      background: #f0f0f0;
+      display: flex;
+      flex-direction: column;
+    }
+    iframe {
+      flex: 1;
+      width: 100%;
+      border: 1px solid #ccc;
+    }
+    #formPane {
+      flex: 1;
+      padding: 1rem;
+      overflow-y: auto;
+      background: #f7f7f7;
+    }
+    .resizer {
+      width: 5px;
+      background: #ccc;
+      cursor: ew-resize;
+    }
+    fieldset {
+      margin-bottom: 1rem;
+      background: #fff;
+      border: 1px solid #ccc;
+      padding: 1rem;
+    }
+    label { display: block; margin-bottom: 0.5rem; }
+    input, select, button {
+      padding: 0.4em;
+      font-size: 1em;
+    }
+    button {
+      background-color: #007bff;
+      color: white;
+      border: 1px solid #007bff;
+      padding: 0.5em;
+      cursor: pointer;
+      margin-top: 1rem;
+    }
+    button:hover { background-color: #0056b3; }
+    #errorMessage {
+      color: red;
+      margin-top: 10px;
+      font-weight: bold;
+    }
+
+    /* Top Controls: dark mode toggle and text size controls */
+    #topControls {
+      position: fixed;
+      top: 10px;
+      right: 10px;
+      z-index: 10000;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      background: #eee;
+      border: 1px solid #ccc;
+      padding: 5px 8px;
+      border-radius: 5px;
+      font-size: 16px !important;  /* Fixed font size for settings */
+    }
+    #topControls span {
+      font-size: 1em;
+      color: #333;
+    }
+
+    /* Dark mode toggle (remains inside #topControls) */
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 60px;
+      height: 34px;
+    }
+    .switch input { 
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: #888;
+      transition: .4s;
+    }
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 26px;
+      width: 26px;
+      left: 4px;
+      bottom: 4px;
+      background-color: #2196F3;
+      transition: .4s;
+    }
+    input:checked + .slider:before {
+      transform: translateX(26px);
+    }
+    .slider.round {
+      border-radius: 34px;
+    }
+    .slider.round:before {
+      border-radius: 50%;
+    }
+    
+    /* Text Size Controls styling */
+    #textSizeControls {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    /* Group plus and minus buttons together */
+    #textSizeControls .sizeButtons {
+      display: inline-flex;
+      gap: 5px;
+    }
+    
+    /* Dark mode styles */
+    body.dark-mode {
+      background: #121212;
+      color: #e0e0e0;
+    }
+    body.dark-mode #pdfPane {
+      background: #333;
+    }
+    body.dark-mode #formPane {
+      background: #222;
+    }
+    body.dark-mode input,
+    body.dark-mode select,
+    body.dark-mode textarea {
+      background: #333 !important;
+      color: #e0e0e0 !important;
+      border: 1px solid #555 !important;
+    }
+    body.dark-mode fieldset {
+      background: #222 !important;
+      border: 1px solid #222 !important;
+    }
+    body.dark-mode button {
+      background-color: #2196F3 !important;
+      border: 1px solid #2196F3 !important;
+      color: #fff !important;
+    }
+    body.dark-mode #topControls {
+      background: #444;
+      border: 1px solid #666;
+    }
+    body.dark-mode #topControls span {
+      color: #e0e0e0;
+    }
+
+  </style>
+</head>
+<body>
+  <!-- Top Controls: Dark Mode Toggle and Text Size Controls (fixed size) -->
+  <div id="topControls">
+    <!-- Dark Mode Toggle -->
+    <div id="darkModeToggle">
+      <label class="switch">
+        <input type="checkbox" id="darkModeSwitch">
+        <span class="slider round"></span>
+      </label>
+      <span>Dark Mode</span>
+    </div>
+    <!-- Text Size Controls -->
+    <div id="textSizeControls">
+      <span>Text Size:</span>
+      <div class="sizeButtons">
+        <button type="button" id="decreaseTextSize">-</button>
+        <button type="button" id="increaseTextSize">+</button>
+      </div>
+      <span id="textSizeDisplay">16</span>
+    </div>
+  </div>
+  
+  <div class="container">
+    <div id="pdfPane">
+      <iframe id="pdfPreview"></iframe>
+    </div>
+    <div class="resizer" id="resizer"></div>
+    <div id="formPane">
+      <h2>USCIS PDF Filler – Multi-Page Coordinates</h2>
+      <label>Select a Form:
+        <select id="formSelect">
+          <option value="i912_conv.pdf" selected>I-912</option>
+          <option value="n400_conv.pdf">N-400</option>
+          <option value="n600_conv.pdf">N-600</option>
+        </select>
+      </label>
+      <fieldset>
+        <legend>Name</legend>
+        <label>First Name: <input type="text" id="firstName" /></label>
+        <label>Middle Name: <input type="text" id="middleName" /></label>
+        <label>Last Name: <input type="text" id="lastName" /></label>
+      </fieldset>
+      <fieldset>
+        <legend>SSN</legend>
+        <!-- SSN input: 9 digits + 2 hyphens = max 11 characters -->
+        <input type="tel" id="ssn" maxlength="11" placeholder="123-45-6789"/>
+      </fieldset>
+      <fieldset>
+        <legend>Contact Info</legend>
+        <!-- Phone input: 10 digits + 2 hyphens = max 12 characters -->
+        <label>Phone: <input type="tel" id="phone" maxlength="12" placeholder="555-123-4567"/></label>
+        <label>Email: <input type="email" id="email" /></label>
+      </fieldset>
+      <fieldset>
+        <legend>Address</legend>
+        <label>Street: <input type="text" id="mailAddress" /></label>
+        <label>City: <input type="text" id="mailCity" /></label>
+        <label>Country:
+          <select id="mailCountry">
+            <option value="AF">Afghanistan (AF)</option>
+            <option value="AL">Albania (AL)</option>
+            <option value="DZ">Algeria (DZ)</option>
+            <option value="AS">American Samoa (AS)</option>
+            <option value="AD">Andorra (AD)</option>
+            <option value="AO">Angola (AO)</option>
+            <option value="AI">Anguilla (AI)</option>
+            <option value="AQ">Antarctica (AQ)</option>
+            <option value="AG">Antigua and Barbuda (AG)</option>
+            <option value="AR">Argentina (AR)</option>
+            <option value="AM">Armenia (AM)</option>
+            <option value="AW">Aruba (AW)</option>
+            <option value="AU">Australia (AU)</option>
+            <option value="AT">Austria (AT)</option>
+            <option value="AZ">Azerbaijan (AZ)</option>
+            <option value="BS">Bahamas (BS)</option>
+            <option value="BH">Bahrain (BH)</option>
+            <option value="BD">Bangladesh (BD)</option>
+            <option value="BB">Barbados (BB)</option>
+            <option value="BY">Belarus (BY)</option>
+            <option value="BE">Belgium (BE)</option>
+            <option value="BZ">Belize (BZ)</option>
+            <option value="BJ">Benin (BJ)</option>
+            <option value="BM">Bermuda (BM)</option>
+            <option value="BT">Bhutan (BT)</option>
+            <option value="BO">Bolivia (BO)</option>
+            <option value="BQ">Bonaire, Sint Eustatius and Saba (BQ)</option>
+            <option value="BA">Bosnia and Herzegovina (BA)</option>
+            <option value="BW">Botswana (BW)</option>
+            <option value="BR">Brazil (BR)</option>
+            <option value="CA">Canada (CA)</option>
+            <option value="CN">China (CN)</option>
+            <option value="CO">Colombia (CO)</option>
+            <option value="DE">Germany (DE)</option>
+            <option value="FR">France (FR)</option>
+            <option value="IN">India (IN)</option>
+            <option value="IT">Italy (IT)</option>
+            <option value="JP">Japan (JP)</option>
+            <option value="MX">Mexico (MX)</option>
+            <option value="NG">Nigeria (NG)</option>
+            <option value="RU">Russian Federation (RU)</option>
+            <option value="SA">Saudi Arabia (SA)</option>
+            <option value="ZA">South Africa (ZA)</option>
+            <option value="KR">Korea (KR)</option>
+            <option value="ES">Spain (ES)</option>
+            <option value="SE">Sweden (SE)</option>
+            <option value="CH">Switzerland (CH)</option>
+            <option value="TR">Turkey (TR)</option>
+            <option value="GB">United Kingdom of Great Britain and Northern Ireland (GB)</option>
+            <option value="US" selected>United States of America (US)</option>
+            <option value="ZW">Zimbabwe (ZW)</option>
+            <option value="AX">Åland Islands (AX)</option>
+          </select>
+        </label>
+        <!-- Dynamic State/Province Field -->
+        <label id="stateLabel">State/Province:
+          <span id="mailStateContainer"></span>
+        </label>
+        <!-- Dynamic ZIP/Postal Code Field -->
+        <label id="zipLabel"></label>
+        <span id="zipContainer"></span>
+      </fieldset>
+      <button type="button" id="updatePreviewBtn">Update Preview</button>
+      <!-- Error message container -->
+      <div id="errorMessage"></div>
+      <form id="uscis-form">
+        <button type="submit">Download Filled PDF</button>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    // Dark mode toggle
+    const darkModeSwitch = document.getElementById("darkModeSwitch");
+    darkModeSwitch.addEventListener("change", function() {
+      if (this.checked) {
+        document.body.classList.add("dark-mode");
+      } else {
+        document.body.classList.remove("dark-mode");
+      }
+    });
+    
+    // Text size controls for website UI (do not change the settings container)
+    const decreaseTextSizeButton = document.getElementById("decreaseTextSize");
+    const increaseTextSizeButton = document.getElementById("increaseTextSize");
+    const textSizeDisplay = document.getElementById("textSizeDisplay");
+    let currentFontSize = 16;  // initial website text size (in pixels)
+    
+    decreaseTextSizeButton.addEventListener("click", () => {
+      if (currentFontSize > 10) {
+        currentFontSize -= 1;
+        textSizeDisplay.innerText = currentFontSize;
+        // Change the website text size except for the top controls
+        document.querySelector("#formPane").style.fontSize = currentFontSize + "px";
+        document.querySelector("#pdfPane").style.fontSize = currentFontSize + "px";
+      }
+    });
+    increaseTextSizeButton.addEventListener("click", () => {
+      if (currentFontSize < 30) {
+        currentFontSize += 1;
+        textSizeDisplay.innerText = currentFontSize;
+        // Change the website text size except for the top controls
+        document.querySelector("#formPane").style.fontSize = currentFontSize + "px";
+        document.querySelector("#pdfPane").style.fontSize = currentFontSize + "px";
+      }
+    });
+
+    const pdfPreview = document.getElementById("pdfPreview");
+    const formSelect = document.getElementById("formSelect");
+    const updatePreviewBtn = document.getElementById("updatePreviewBtn");
+    const resizer = document.getElementById("resizer");
+    const pdfPane = document.getElementById("pdfPane");
+
+    let originalPdfBytes = null;
+    let font = null;
+    // Only validate when update is pressed.
+    let validateOnUpdate = false;
+
+    // Field coordinate mappings.
+    // For each form, mailZip and mailPostal share the same coordinates.
+    const fieldCoords = {
+      "i912_conv.pdf": {
+        firstName:  { page: 0, x: 280,  y: 178 },
+        middleName: { page: 0, x: 445, y: 178 },
+        lastName:   { page: 0, x: 57, y: 178 },
+        ssn:        { page: 1, x: 235,  y: 705 },
+        phone:      { page: 4, x: 57,  y: 465 },
+        email:      { page: 4, x: 57,  y: 430 },
+        mailAddress:{ page: 1, x: 50,  y: 610 },
+        mailCity:   { page: 1, x: 50,  y: 595 },
+        mailCountry:{ page: 1, x: 50,  y: 570 },
+        mailState:  { page: 1, x: 200, y: 595 },
+        mailProvince:{ page: 1, x: 200, y: 575 },
+        mailZip:    { page: 1, x: 350, y: 595 },
+        mailPostal: { page: 1, x: 350, y: 595 }
+      },
+      "n400_conv.pdf": {
+        firstName:  { page: 0, x: 280,  y: 136 },
+        middleName: { page: 0, x: 445, y: 136 },
+        lastName:   { page: 0, x: 63, y: 136 },
+        ssn:        { page: 1, x: 290,  y: 135 },
+        phone:      { page: 10, x: 67,  y: 378 },
+        email:      { page: 10, x: 67,  y: 341 },
+        mailAddress:{ page: 2, x: 67,  y: 317 },
+        mailCity:   { page: 2, x: 67,  y: 280 },
+        mailCountry:{ page: 2, x: 356,  y: 243 },
+        mailState:  { page: 2, x: 447, y: 280 },
+        mailProvince:{ page: 2, x: 67, y: 243 },
+        mailZip:    { page: 2, x: 520, y: 280 },
+        mailPostal: { page: 2, x: 225, y: 243 }
+      },
+      "n600_conv.pdf": {
+        firstName:  { page: 0, x: 80,  y: 720 },
+        middleName: { page: 0, x: 170, y: 720 },
+        lastName:   { page: 0, x: 320, y: 720 },
+        ssn:        { page: 0, x: 80,  y: 690 },
+        phone:      { page: 0, x: 80,  y: 670 },
+        email:      { page: 0, x: 80,  y: 655 },
+        mailAddress:{ page: 1, x: 80,  y: 640 },
+        mailCity:   { page: 1, x: 80,  y: 625 },
+        mailCountry:{ page: 1, x: 80,  y: 610 },
+        mailState:  { page: 1, x: 230, y: 625 },
+        mailProvince:{ page: 1, x: 230, y: 615 },
+        mailZip:    { page: 1, x: 380, y: 625 },
+        mailPostal: { page: 1, x: 380, y: 625 }
+      }
+    };
+
+    // Resizer code.
+    let isResizing = false;
+    const resizeOverlay = document.createElement('div');
+    resizeOverlay.style.display = 'none';
+    resizeOverlay.style.position = 'fixed';
+    resizeOverlay.style.top = 0;
+    resizeOverlay.style.left = 0;
+    resizeOverlay.style.right = 0;
+    resizeOverlay.style.bottom = 0;
+    resizeOverlay.style.cursor = 'ew-resize';
+    resizeOverlay.style.zIndex = 9999;
+    document.body.appendChild(resizeOverlay);
+
+    resizer.addEventListener('mousedown', (e) => {
+      isResizing = true;
+      resizeOverlay.style.display = 'block';
+      document.body.style.cursor = 'ew-resize';
+      e.preventDefault();
+    });
+    document.addEventListener('mousemove', (e) => {
+      if (!isResizing) return;
+      const newWidth = e.clientX;
+      if (newWidth > 250 && newWidth < window.innerWidth - 250) {
+        pdfPane.style.width = `${newWidth}px`;
+      }
+    });
+    document.addEventListener('mouseup', () => {
+      if (isResizing) {
+        isResizing = false;
+        resizeOverlay.style.display = 'none';
+        document.body.style.cursor = 'default';
+      }
+    });
+
+    // === Input Mask Functions ===
+    function maskSSN(value) {
+      let digits = value.replace(/\D/g, '').substring(0, 9);
+      if (digits.length > 5) {
+        return digits.slice(0, 3) + "-" + digits.slice(3, 5) + "-" + digits.slice(5);
+      } else if (digits.length > 3) {
+        return digits.slice(0, 3) + "-" + digits.slice(3);
+      } else {
+        return digits;
+      }
+    }
+    function maskPhone(value) {
+      let digits = value.replace(/\D/g, '').substring(0, 10);
+      if (digits.length > 6) {
+        return digits.slice(0, 3) + "-" + digits.slice(3, 6) + "-" + digits.slice(6);
+      } else if (digits.length > 3) {
+        return digits.slice(0, 3) + "-" + digits.slice(3);
+      } else {
+        return digits;
+      }
+    }
+    document.getElementById("ssn").addEventListener("input", function() {
+      this.value = maskSSN(this.value);
+    });
+    document.getElementById("phone").addEventListener("input", function() {
+      this.value = maskPhone(this.value);
+    });
+
+    // === Dynamic ZIP/Postal Code Field ===
+    function updateZipField() {
+      const country = document.getElementById("mailCountry").value;
+      const zipContainer = document.getElementById("zipContainer");
+      const zipLabel = document.getElementById("zipLabel");
+      while (zipContainer.firstChild) {
+        zipContainer.removeChild(zipContainer.firstChild);
+      }
+      if (country === "US") {
+        zipLabel.innerText = "ZIP:";
+        let zipField = document.createElement("input");
+        zipField.type = "tel";
+        zipField.id = "mailZip";
+        zipField.maxLength = "5";
+        zipField.placeholder = "12345";
+        zipContainer.appendChild(zipField);
+      } else {
+        zipLabel.innerText = "Postal Code:";
+        let postalField = document.createElement("input");
+        postalField.type = "tel";
+        postalField.id = "mailPostal";
+        postalField.maxLength = "5";
+        postalField.placeholder = "12345";
+        zipContainer.appendChild(postalField);
+      }
+    }
+
+    // === Validation Function ===
+    function validateInputs() {
+      const ssnInput = document.getElementById("ssn").value;
+      const phoneInput = document.getElementById("phone").value;
+      const country = document.getElementById("mailCountry").value;
+      let zipDigits = "";
+      if (country === "US") {
+        zipDigits = document.getElementById("mailZip").value.replace(/\D/g, '');
+      } else {
+        zipDigits = document.getElementById("mailPostal").value.replace(/\D/g, '');
+      }
+      const ssnDigits = ssnInput.replace(/\D/g, '');
+      const phoneDigits = phoneInput.replace(/\D/g, '');
+      let errors = [];
+      if (ssnDigits.length !== 9) {
+        errors.push("SSN must contain exactly 9 digits.");
+      }
+      if (phoneDigits.length !== 10) {
+        errors.push("Phone number must contain exactly 10 digits.");
+      }
+      if (zipDigits.length !== 5) {
+        if (country === "US") {
+          errors.push("ZIP must contain exactly 5 digits.");
+        } else {
+          errors.push("Postal Code must contain exactly 5 digits.");
+        }
+      }
+      const errorMessageDiv = document.getElementById("errorMessage");
+      if (errors.length > 0) {
+        errorMessageDiv.innerText = errors.join(" ");
+        return false;
+      } else {
+        errorMessageDiv.innerText = "";
+        return true;
+      }
+    }
+
+    // === Formatting Helpers for PDF Overlay ===
+    function formatSSN(ssn) {
+      let digits = ssn.replace(/\D/g, '');
+      if (digits.length === 9) {
+        return digits.slice(0, 3) + "-" + digits.slice(3, 5) + "-" + digits.slice(5);
+      }
+      return ssn;
+    }
+    function formatPhone(phone) {
+      let digits = phone.replace(/\D/g, '');
+      if (digits.length === 10) {
+        return digits.slice(0, 3) + "-" + digits.slice(3, 6) + "-" + digits.slice(6);
+      }
+      return phone;
+    }
+
+    // === PDF Update Functions ===
+    async function loadPDF(filename) {
+      const res = await fetch(filename);
+      originalPdfBytes = await res.arrayBuffer();
+      await updatePreview();
+    }
+    async function updatePreview() {
+      if (!originalPdfBytes) return;
+      if (validateOnUpdate && !validateInputs()) return;
+      const pdfDoc = await PDFLib.PDFDocument.load(originalPdfBytes, { ignoreEncryption: true });
+      const pages = pdfDoc.getPages();
+      if (!font) font = await pdfDoc.embedFont(PDFLib.StandardFonts.Helvetica);
+      const currentForm = formSelect.value;
+      const coords = fieldCoords[currentForm];
+      const drawField = (fieldId, fieldName) => {
+        let value;
+        if (fieldId === "mailCountry") {
+          const selectEl = document.getElementById(fieldId);
+          value = selectEl.options[selectEl.selectedIndex].text;
+        } else {
+          value = document.getElementById(fieldId).value;
+          if (fieldId === "ssn") {
+            value = formatSSN(value);
+          } else if (fieldId === "phone") {
+            value = formatPhone(value);
+          }
+        }
+        if (coords && coords[fieldName] && value) {
+          const { page, x, y } = coords[fieldName];
+          if (pages[page]) {
+            // PDF overlay text size remains fixed at 10px
+            pages[page].drawText(value, { x, y, size: 10, font });
+          }
+        }
+      };
+      drawField("firstName", "firstName");
+      drawField("middleName", "middleName");
+      drawField("lastName", "lastName");
+      drawField("ssn", "ssn");
+      drawField("phone", "phone");
+      drawField("email", "email");
+      drawField("mailCountry", "mailCountry");
+      drawField("mailAddress", "mailAddress");
+      drawField("mailCity", "mailCity");
+      if (document.getElementById("mailCountry").value === "US") {
+        drawField("mailState", "mailState");
+        drawField("mailZip", "mailZip");
+      } else {
+        drawField("mailProvince", "mailProvince");
+        drawField("mailPostal", "mailPostal");
+      }
+      const pdfBytes = await pdfDoc.save({ useObjectStreams: false });
+      const url = URL.createObjectURL(new Blob([pdfBytes], { type: "application/pdf" }));
+      pdfPreview.src = url;
+    }
+
+    // === Form Submission & Update Events ===
+    document.getElementById("uscis-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      validateOnUpdate = true;
+      if (!validateInputs()) return;
+      await updatePreview();
+      const a = document.createElement("a");
+      a.href = pdfPreview.src;
+      a.download = "filled_form.pdf";
+      a.click();
+    });
+    updatePreviewBtn.addEventListener("click", () => {
+      validateOnUpdate = true;
+      updatePreview();
+    });
+    formSelect.addEventListener("change", () => {
+      loadPDF(formSelect.value);
+    });
+
+    // === Dynamic State/Province Field ===
+    function updateStateField() {
+      const country = document.getElementById("mailCountry").value;
+      const container = document.getElementById("mailStateContainer");
+      const stateLabel = document.getElementById("stateLabel");
+      if (country === "US") {
+        stateLabel.childNodes[0].nodeValue = "State:";
+      } else {
+        stateLabel.childNodes[0].nodeValue = "Province:";
+      }
+      while (container.firstChild) {
+        container.removeChild(container.firstChild);
+      }
+      if (country === "US") {
+        let stateField = document.createElement("select");
+        stateField.id = "mailState";
+        let emptyOption = document.createElement("option");
+        emptyOption.value = "";
+        emptyOption.text = "";
+        stateField.add(emptyOption);
+        const states = [
+          "Alabama", "Alaska", "Arizona", "Arkansas", "California", "Colorado", "Connecticut", "Delaware",
+          "Florida", "Georgia", "Hawaii", "Idaho", "Illinois", "Indiana", "Iowa", "Kansas", "Kentucky",
+          "Louisiana", "Maine", "Maryland", "Massachusetts", "Michigan", "Minnesota", "Mississippi",
+          "Missouri", "Montana", "Nebraska", "Nevada", "New Hampshire", "New Jersey", "New Mexico",
+          "New York", "North Carolina", "North Dakota", "Ohio", "Oklahoma", "Oregon", "Pennsylvania",
+          "Rhode Island", "South Carolina", "South Dakota", "Tennessee", "Texas", "Utah", "Vermont",
+          "Virginia", "Washington", "West Virginia", "Wisconsin", "Wyoming"
+        ];
+        states.forEach(function(state) {
+          let option = document.createElement("option");
+          option.value = state;
+          option.text = state;
+          stateField.add(option);
+        });
+        container.appendChild(stateField);
+      } else {
+        let provinceField = document.createElement("input");
+        provinceField.id = "mailProvince";
+        provinceField.type = "text";
+        container.appendChild(provinceField);
+      }
+    }
+
+    // === Dynamic ZIP/Postal Code Field ===
+    function updateZipField() {
+      const country = document.getElementById("mailCountry").value;
+      const zipContainer = document.getElementById("zipContainer");
+      const zipLabel = document.getElementById("zipLabel");
+      while (zipContainer.firstChild) {
+        zipContainer.removeChild(zipContainer.firstChild);
+      }
+      if (country === "US") {
+        zipLabel.innerText = "ZIP:";
+        let zipField = document.createElement("input");
+        zipField.type = "tel";
+        zipField.id = "mailZip";
+        zipField.maxLength = "5";
+        zipField.placeholder = "12345";
+        zipContainer.appendChild(zipField);
+      } else {
+        zipLabel.innerText = "Postal Code:";
+        let postalField = document.createElement("input");
+        postalField.type = "tel";
+        postalField.id = "mailPostal";
+        postalField.maxLength = "5";
+        postalField.placeholder = "12345";
+        zipContainer.appendChild(postalField);
+      }
+    }
+
+    // Initialize dynamic fields on DOM load.
+    document.addEventListener("DOMContentLoaded", () => {
+      if (formSelect && formSelect.value) {
+        loadPDF(formSelect.value);
+      }
+      updateStateField();
+      updateZipField();
+      document.getElementById("mailCountry").addEventListener("change", () => {
+        updateStateField();
+        updateZipField();
+      });
+    });
+  </script>
+</body>
+</html>
