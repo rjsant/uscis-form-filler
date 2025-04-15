@@ -1,0 +1,1211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>USCIS PDF Filler</title>
+  <script src="https://unpkg.com/pdf-lib/dist/pdf-lib.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter&display=swap" rel="stylesheet">
+
+  <style>
+  
+  body, input, select, button, fieldset, #pdfPane, #formPane {
+  transition: background 0.4s ease, color 0.4s ease, border-color 0.4s ease;
+	}
+
+  #questionsContent {
+	overflow: hidden;
+	max-height: 10000px;
+	transition: max-height .5s ease-out, padding .5s ease;
+   }
+	
+  #questionsContent.collapsed {
+	max-height: 0;
+	padding: 0;
+   }
+
+    /* Basic styling */
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: 'Inter', sans-serif;
+	  font-weight: 1000;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      background: #f4f4f7;
+      color: #222;
+      font-size: 16px;
+    }
+    .container {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+      flex-direction: row;
+    }
+    #pdfPane {
+      min-width: 250px;
+      max-width: 90vw;
+      width: 50%;
+      padding: 1rem;
+      background: #f0f0f0;
+      display: flex;
+      flex-direction: column;
+	  border-radius: 10px;
+    }
+    iframe {
+      flex: 1;
+      width: 100%;
+      border: 1px solid #ccc;
+    }
+    #formPane {
+      flex: 1;
+      padding: 1rem;
+      overflow-y: auto;
+      background: #f7f7f7;
+    }
+    .resizer {
+      width: 5px;
+      background: #ccc;
+      cursor: ew-resize;
+    }
+    fieldset {
+      margin-bottom: 1rem;
+      background: #ffffff;
+	  border-color: #d0d0d0;
+      border: 1px solid #ccc;
+      padding: 1rem;
+	  border-radius: 10px;
+    }
+    label { display: block; margin-bottom: 0.5em; }
+    input, select, button, textarea {
+      padding: 0.4em;
+      font-size: 1em;
+	  border-radius: 6px;
+    }
+    button {
+      background-color: #007bff;
+      color: white;
+      border: 1px solid #007bff;
+      padding: 0.5em;
+      cursor: pointer;
+      margin-top: 1rem;
+    }
+    button:hover { background-color: #0056b3; }
+    #errorMessage {
+      color: red;
+      margin-top: 10px;
+      font-weight: bold;
+    }
+    /* Top Controls */
+    #topControls {
+      position: fixed;
+      top: 10px;
+      right: 30px;
+      z-index: 10000;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      background: #eee;
+      border: 1px solid #ccc;
+      padding: 5px 8px;
+      border-radius: 10px;
+      font-size: 16px;
+    }
+    #topControls span {
+      font-size: 1em;
+      color: #333;
+    }
+    /* Dark mode toggle styling */
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 60px;
+      height: 34px;
+    }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background-color: #888;
+      transition: .4s;
+    }
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 26px;
+      width: 26px;
+      left: 4px;
+      bottom: 4px;
+      background-color: #2196F3;
+      transition: .4s;
+    }
+    input:checked + .slider:before { transform: translateX(26px); }
+    .slider.round { border-radius: 34px; }
+    .slider.round:before { border-radius: 50%; }
+    /* Text Size Controls styling */
+    #textSizeControls {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    #textSizeControls .sizeButtons { display: inline-flex; gap: 5px; }
+    /* Collapsible Yes/No Questions Section */
+    #n400Questions {
+      margin: 1em 0;
+      border: 1px solid #ccc;
+      background: #fff;
+    }
+    #questionsHeader {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.5em;
+      background: #f0f0f0;
+      border-bottom: 1px solid #ccc;
+    }
+    #questionsHeader h3 {
+      margin: 0;
+      font-size: 1em;
+    }
+    #toggleQuestions {
+      background-color: #007bff;
+      border: none;
+      color: #fff;
+      padding: 0.3em 0.6em;
+      cursor: pointer;
+      font-size: 0.9em;
+    }
+    #questionsContent {
+      padding: 0.5em;
+    }
+    .question { margin-bottom: 1em; }
+    /* Dark mode styles */
+    body.dark-mode {
+      background: #1e1e2f;
+      color: #e0e0e0;
+    }
+    body.dark-mode #pdfPane { background: #333; }
+    body.dark-mode #formPane { background: #222; }
+    body.dark-mode input,
+    body.dark-mode select,
+    body.dark-mode textarea {
+      background: #2c2c3a !important;
+      color: #e0e0e0 !important;
+      border: 1px solid #555 !important;
+	  border-color: #3a3a55;
+    }
+    body.dark-mode select {
+      -webkit-appearance: none;
+      -moz-appearance: none;
+      appearance: none;
+      background: #333 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 4 5'%3E%3Cpath fill='currentColor' d='M2 0L0 2h4z'/%3E%3C/svg%3E")
+      no-repeat right 10px center;
+      background-size: 10px 12px;
+      color: #e0e0e0;
+    }
+    body.dark-mode fieldset { background: #222 !important; border: 1px solid #222 !important; }
+    body.dark-mode button {
+      background-color: #2196F3 !important;
+      border: 1px solid #2196F3 !important;
+      color: #fff !important;
+    }
+    body.dark-mode #topControls { background: #444; border: 1px solid #666; }
+    body.dark-mode #topControls span { color: #e0e0e0; }
+    body.dark-mode #n400Questions { background: #333; border: 1px solid #555; }
+    body.dark-mode #questionsHeader, body.dark-mode #questionsHeader h3,
+    body.dark-mode #toggleQuestions { background: #444; color: #e0e0e0; }
+  </style>
+</head>
+<body>
+  <!-- Top Controls -->
+  <div id="topControls">
+    <div id="darkModeToggle">
+      <label class="switch">
+        <input type="checkbox" id="darkModeSwitch">
+        <span class="slider round"></span>
+      </label>
+      <span>Dark Mode</span>
+    </div>
+    <div id="textSizeControls">
+      <span>Text Size:</span>
+      <div class="sizeButtons">
+        <button type="button" id="decreaseTextSize">-</button>
+        <button type="button" id="increaseTextSize">+</button>
+      </div>
+      <span id="textSizeDisplay">16</span>
+    </div>
+  </div>
+
+  <!-- Main Interface Container -->
+  <div class="container">
+    <div id="pdfPane">
+      <iframe id="pdfPreview"></iframe>
+    </div>
+    <div class="resizer" id="resizer"></div>
+    <div id="formPane">
+      <h2>USCIS PDF Filler</h2>
+      <label>Select a Form:
+        <select id="formSelect">
+          <option value="i912_conv.pdf">I-912</option>
+          <option value="n400_conv.pdf" selected>N-400</option>
+          <option value="n600_conv.pdf">N-600</option>
+        </select>
+      </label>
+      
+      <!-- Standard Fields -->
+      <fieldset>
+        <legend>Name</legend>
+        <label>First Name: <input type="text" id="firstName" /></label>
+        <label>Middle Name: <input type="text" id="middleName" /></label>
+        <label>Last Name: <input type="text" id="lastName" /></label>
+      </fieldset>
+	  <fieldset>
+		<legend>Date of Birth</legend>
+        <label for="dob">Date of Birth: <input type="date" id="dob" /> </label>   
+	  </fieldset>
+      <fieldset>
+        <legend>SSN</legend>
+        <input type="tel" id="ssn" maxlength="11" placeholder="123-45-6789"/>
+      </fieldset>
+      <fieldset>
+        <legend>Contact Info</legend>
+        <label>Phone: <input type="tel" id="phone" maxlength="12" placeholder="555-123-4567"/></label>
+        <label>Email: <input type="email" id="email" /></label>
+      </fieldset>
+      <fieldset>
+        <legend>Address</legend>
+        <label>Street: <input type="text" id="mailAddress" /></label>
+        <label>City: <input type="text" id="mailCity" /></label>
+        <label>Country:
+          <select id="mailCountry">
+            <option value="AF">Afghanistan (AF)</option>
+            <option value="AL">Albania (AL)</option>
+            <option value="DZ">Algeria (DZ)</option>
+            <option value="AS">American Samoa (AS)</option>
+            <option value="AD">Andorra (AD)</option>
+            <option value="AO">Angola (AO)</option>
+            <option value="AI">Anguilla (AI)</option>
+            <option value="AQ">Antarctica (AQ)</option>
+            <option value="AG">Antigua and Barbuda (AG)</option>
+            <option value="AR">Argentina (AR)</option>
+            <option value="AM">Armenia (AM)</option>
+            <option value="AW">Aruba (AW)</option>
+            <option value="AU">Australia (AU)</option>
+            <option value="AT">Austria (AT)</option>
+            <option value="AZ">Azerbaijan (AZ)</option>
+            <option value="BS">Bahamas (BS)</option>
+            <option value="BH">Bahrain (BH)</option>
+            <option value="BD">Bangladesh (BD)</option>
+            <option value="BB">Barbados (BB)</option>
+            <option value="BY">Belarus (BY)</option>
+            <option value="BE">Belgium (BE)</option>
+            <option value="BZ">Belize (BZ)</option>
+            <option value="BJ">Benin (BJ)</option>
+            <option value="BM">Bermuda (BM)</option>
+            <option value="BT">Bhutan (BT)</option>
+            <option value="BO">Bolivia (BO)</option>
+            <option value="BQ">Bonaire, Sint Eustatius and Saba (BQ)</option>
+            <option value="BA">Bosnia and Herzegovina (BA)</option>
+            <option value="BW">Botswana (BW)</option>
+            <option value="BR">Brazil (BR)</option>
+            <option value="CA">Canada (CA)</option>
+            <option value="CN">China (CN)</option>
+            <option value="CO">Colombia (CO)</option>
+            <option value="DE">Germany (DE)</option>
+            <option value="FR">France (FR)</option>
+            <option value="IN">India (IN)</option>
+            <option value="IT">Italy (IT)</option>
+            <option value="JP">Japan (JP)</option>
+            <option value="MX">Mexico (MX)</option>
+            <option value="NG">Nigeria (NG)</option>
+            <option value="RU">Russian Federation (RU)</option>
+            <option value="SA">Saudi Arabia (SA)</option>
+            <option value="ZA">South Africa (ZA)</option>
+            <option value="KR">Korea (KR)</option>
+            <option value="ES">Spain (ES)</option>
+            <option value="SE">Sweden (SE)</option>
+            <option value="CH">Switzerland (CH)</option>
+            <option value="TR">Turkey (TR)</option>
+            <option value="GB">United Kingdom (GB)</option>
+            <option value="US" selected>United States of America (US)</option>
+            <option value="ZW">Zimbabwe (ZW)</option>
+            <option value="AX">Åland Islands (AX)</option>
+          </select>
+        </label>
+        <label id="stateLabel">State/Province:
+          <span id="mailStateContainer"></span>
+        </label>
+        <label id="zipLabel"></label>
+        <span id="zipContainer"></span>
+      </fieldset>
+      
+      <!-- Collapsible Yes/No Questions for N-400 -->
+      <div id="n400Questions" style="display: none;">
+        <div id="questionsHeader">
+          <h3>Yes/No Questions (Part 9 Additional Information)</h3>
+          <button id="toggleQuestions">Collapse</button>
+        </div>
+        <div id="questionsContent">
+          <!-- List all 50 questions exactly as provided, with no default selections -->
+          <div class="question">
+            <p>1. Have you EVER claimed to be a U.S. citizen (in writing or any other way)?</p>
+            <label><input type="radio" name="q_1" value="yes"> Yes</label>
+            <label><input type="radio" name="q_1" value="no"> No</label>
+          </div>
+          <div class="question">
+            <p>2. Have you EVER registered to vote or voted in any Federal, state, or local election in the United States? If you lawfully voted only in a local election where aliens are eligible to vote, you may answer “No.”</p>
+            <label><input type="radio" name="q_2" value="yes"> Yes</label>
+            <label><input type="radio" name="q_2" value="no"> No</label>
+          </div>
+          <div class="question">
+            <p>3. Do you currently owe any overdue Federal, state, or local taxes and/or have you called yourself a “nonresident alien” on your tax return?</p>
+            <label><input type="radio" name="q_3" value="yes"> Yes</label>
+            <label><input type="radio" name="q_3" value="no"> No</label>
+          </div>
+          <div class="question">
+            <p>4. Since you became a lawful permanent resident, have you called yourself a “nonresident alien” on a Federal, state, or local tax return or decided not to file a tax return because you considered yourself to be a nonresident?</p>
+            <label><input type="radio" name="q_4" value="yes"> Yes</label>
+            <label><input type="radio" name="q_4" value="no"> No</label>
+          </div>
+          <div class="question">
+            <p>5.a. Been a member of, involved in, or in any way associated with any Communist or totalitarian party anywhere in the world?</p>
+            <label><input type="radio" name="q_5a" value="yes"> Yes</label>
+            <label><input type="radio" name="q_5a" value="no"> No</label>
+          </div>
+          <div class="question">
+            <p>5.b. Advocated (supported and promoted) any of the following, or been a member of, involved in, or in any way associated with any group anywhere in the world that advocated any of the following:<br></p>
+            <p>- Opposition to all organized government;<br>
+            - World Communism;<br>
+            - The establishment in the United States of a totalitarian dictatorship;<br>
+            - The overthrow by force or violence or other unconstitutional means of the Government of the United States or all forms of law;<br>
+            - The unlawful assaulting or killing of any officer or officers of the Government of the United States or of any other organized government because of their official character;<br>
+            - The unlawful damage, injury or destruction of property;<br>
+            - Sabotage</p>
+            <label><input type="radio" name="q_5b" value="yes"> Yes</label>
+            <label><input type="radio" name="q_5b" value="no"> No</label>
+          </div>
+          <div class="question">
+            <p>6a. Have you EVER used a weapon or explosive with intent to harm or cause property damage?</p>
+            <label><input type="radio" name="q_6a" value="yes"> Yes</label>
+            <label><input type="radio" name="q_6a" value="no"> No</label>
+          </div>
+          <div class="question">
+            <p>6b. Have you EVER engaged in kidnapping, assassination, hijacking, or sabotage of transportation?</p>
+            <label><input type="radio" name="q_6b" value="yes"> Yes</label>
+            <label><input type="radio" name="q_6b" value="no"> No</label>
+          </div>
+          <div class="question">
+            <p>6c. Have you EVER threatened, conspired, or incited others to commit any of the acts mentioned above? (6a &amp; 6b)</p>
+            <label><input type="radio" name="q_6c" value="yes"> Yes</label>
+            <label><input type="radio" name="q_6c" value="no"> No</label>
+          </div>
+          <div class="question">
+            <p>7a. Have you EVER ordered, incited, called for, committed, assisted, helped with, or participated in any of the following: Torture?</p>
+            <label><input type="radio" name="q_7a" value="yes"> Yes</label>
+            <label><input type="radio" name="q_7a" value="no"> No</label>
+          </div>
+          <div class="question">
+            <p>7b. Genocide?</p>
+            <label><input type="radio" name="q_7b" value="yes"> Yes</label>
+            <label><input type="radio" name="q_7b" value="no"> No</label>
+          </div>
+          <div class="question">
+            <p>7c. Killing or trying to kill any person?</p>
+            <label><input type="radio" name="q_7c" value="yes"> Yes</label>
+            <label><input type="radio" name="q_7c" value="no"> No</label>
+          </div>
+          <div class="question">
+            <p>7d. Intentionally and severely injuring or trying to injure any person?</p>
+            <label><input type="radio" name="q_7d" value="yes"> Yes</label>
+            <label><input type="radio" name="q_7d" value="no"> No</label>
+          </div>
+          <div class="question">
+            <p>7e. Any kind of sexual contact or activity with any person who did not consent (did not agree) or was unable to consent (could not agree), or was being forced or threatened by you or by someone else?</p>
+            <label><input type="radio" name="q_7e" value="yes"> Yes</label>
+            <label><input type="radio" name="q_7e" value="no"> No</label>
+          </div>
+          <div class="question">
+            <p>7f. Not letting someone practice his or her religion?</p>
+            <label><input type="radio" name="q_7f" value="yes"> Yes</label>
+            <label><input type="radio" name="q_7f" value="no"> No</label>
+          </div>
+          <div class="question">
+            <p>7g. Causing harm or suffering to any person because of his or her race, religion, national origin, membership in a particular social group, or political opinion?</p>
+            <label><input type="radio" name="q_7g" value="yes"> Yes</label>
+            <label><input type="radio" name="q_7g" value="no"> No</label>
+          </div>
+          <div class="question">
+            <p>8a. Have you EVER served in, been a member of, assisted (helped), or participated in any military or police unit?</p>
+            <label><input type="radio" name="q_8a" value="yes"> Yes</label>
+            <label><input type="radio" name="q_8a" value="no"> No</label>
+          </div>
+          <div class="question">
+            <p>8b. Have you EVER served in, been a member of, assisted (helped), or participated in any armed group (a group that carries weapons), for example: paramilitary unit (a group of people who act like a military group but are not part of the official military), self-defense unit, vigilante unit, rebel group, or guerrilla group? If you answered “Yes” to Item Number 8.a. or Item Number 8.b., include the name of the country, the name of the military unit or armed group, your rank or position, and your dates of involvement in your explanation in Part 14. Additional Information</p>
+            <label><input type="radio" name="q_8b" value="yes"> Yes</label>
+            <label><input type="radio" name="q_8b" value="no"> No</label>
+          </div>
+          <div class="question">
+            <p>9. Have you EVER worked, volunteered, or otherwise served in a place where people were detained (forced to stay), for example, a prison, jail, prison camp (a camp where prisoners of war or political prisoners are kept), detention facility, or labor camp, or have you EVER directed or participated in any other activity that involved detaining people?</p>
+            <label><input type="radio" name="q_9" value="yes"> Yes</label>
+            <label><input type="radio" name="q_9" value="no"> No</label>
+          </div>
+          <div class="question">
+            <p>10a. Were you EVER a part of any group, or did you EVER help any group, unit, or organization that used a weapon against any person, or threatened to do so?</p>
+            <label><input type="radio" name="q_10a" value="yes"> Yes</label>
+            <label><input type="radio" name="q_10a" value="no"> No</label>
+          </div>
+          <div class="question">
+            <p>10b. If you answered “Yes” to Item Number 10.a., when you were part of this group, or when you helped this group, did you ever use a weapon against another person?</p>
+            <label><input type="radio" name="q_10b" value="yes"> Yes</label>
+            <label><input type="radio" name="q_10b" value="no"> No</label>
+          </div>
+          <div class="question">
+            <p>10c. If you answered “Yes” to Item Number 10.a., when you were part of this group, or when you helped this group, did you ever threaten another person that you would use a weapon against that person?</p>
+            <label><input type="radio" name="q_10c" value="yes"> Yes</label>
+            <label><input type="radio" name="q_10c" value="no"> No</label>
+          </div>
+          <div class="question">
+            <p>11. Have you EVER sold, provided, or transported weapons, or assisted any person in selling, providing, or transporting weapons, which you knew or believed would be used against another person?</p>
+            <label><input type="radio" name="q_11" value="yes"> Yes</label>
+            <label><input type="radio" name="q_11" value="no"> No</label>
+          </div>
+          <div class="question">
+            <p>12. Have you EVER received any weapons training, paramilitary training, or other military-type training?</p>
+            <label><input type="radio" name="q_12" value="yes"> Yes</label>
+            <label><input type="radio" name="q_12" value="no"> No</label>
+          </div>
+          <div class="question">
+            <p>13. Have you EVER recruited (asked), enlisted (signed up), conscripted (required to join), or used any person under 15 years of age to serve in or help an armed group, or attempted or worked with others to do so?</p>
+            <label><input type="radio" name="q_13" value="yes"> Yes</label>
+            <label><input type="radio" name="q_13" value="no"> No</label>
+          </div>
+          <div class="question">
+            <p>14. Have you EVER used any person under 15 years of age to take part in hostilities or attempted or worked with others to do so? This could include participating in combat or providing services related to combat (such as serving as a messenger or transporting supplies).</p>
+            <label><input type="radio" name="q_14" value="yes"> Yes</label>
+            <label><input type="radio" name="q_14" value="no"> No</label>
+          </div>
+          <div class="question">
+            <p>15a. Have you EVER committed, agreed to commit, asked someone else to commit, helped commit, or tried to commit a crime or offense for which you were NOT arrested?</p>
+            <label><input type="radio" name="q_15a" value="yes"> Yes</label>
+            <label><input type="radio" name="q_15a" value="no"> No</label>
+          </div>
+          <div class="question">
+            <p>15b. Have you EVER been arrested, cited, detained or confined by any law enforcement officer, military official (in the U.S. or elsewhere), or immigration official for any reason, or been charged with a crime or offense?</p>
+            <label><input type="radio" name="q_15b" value="yes"> Yes</label>
+            <label><input type="radio" name="q_15b" value="no"> No</label>
+          </div>
+          <div class="question">
+            <p>16. If you received a suspended sentence, were placed on probation, or were paroled, have you completed your suspended sentence, probation, or parole?</p>
+            <label><input type="radio" name="q_16" value="yes"> Yes</label>
+            <label><input type="radio" name="q_16" value="no"> No</label>
+          </div>
+          <div class="question">
+            <p>17a. Engaged in prostitution, attempted to procure or import prostitutes or persons for the purpose of prostitution, or received any proceeds or money from prostitution?</p>
+            <label><input type="radio" name="q_17a" value="yes"> Yes</label>
+            <label><input type="radio" name="q_17a" value="no"> No</label>
+          </div>
+          <div class="question">
+            <p>17b. Manufactured, cultivated, produced, distributed, dispensed, sold, or smuggled (trafficked) any controlled substances, illegal drugs, narcotics, or drug paraphernalia in violation of any law or regulation of a U.S. state, the United States, or a foreign country?</p>
+            <label><input type="radio" name="q_17b" value="yes"> Yes</label>
+            <label><input type="radio" name="q_17b" value="no"> No</label>
+          </div>
+          <div class="question">
+            <p>17c. Been married to more than one person at the same time?</p>
+            <label><input type="radio" name="q_17c" value="yes"> Yes</label>
+            <label><input type="radio" name="q_17c" value="no"> No</label>
+          </div>
+          <div class="question">
+            <p>17d. Married someone in order to obtain an immigration benefit?</p>
+            <label><input type="radio" name="q_17d" value="yes"> Yes</label>
+            <label><input type="radio" name="q_17d" value="no"> No</label>
+          </div>
+          <div class="question">
+            <p>17e. Helped anyone to enter, or try to enter, the United States illegally?</p>
+            <label><input type="radio" name="q_17e" value="yes"> Yes</label>
+            <label><input type="radio" name="q_17e" value="no"> No</label>
+          </div>
+          <div class="question">
+            <p>17f. Gambled illegally or received income from illegal gambling?</p>
+            <label><input type="radio" name="q_17f" value="yes"> Yes</label>
+            <label><input type="radio" name="q_17f" value="no"> No</label>
+          </div>
+          <div class="question">
+            <p>17g. Failed to support your dependents (pay child support) or to pay alimony (court-ordered financial support after divorce or separation)?</p>
+            <label><input type="radio" name="q_17g" value="yes"> Yes</label>
+            <label><input type="radio" name="q_17g" value="no"> No</label>
+          </div>
+          <div class="question">
+            <p>17h. Made any misrepresentation to obtain any public benefit in the United States?</p>
+            <label><input type="radio" name="q_17h" value="yes"> Yes</label>
+            <label><input type="radio" name="q_17h" value="no"> No</label>
+          </div>
+          <div class="question">
+            <p>18. Have you EVER given any U.S. Government officials any information or documentation that was false, fraudulent, or misleading?</p>
+            <label><input type="radio" name="q_18" value="yes"> Yes</label>
+            <label><input type="radio" name="q_18" value="no"> No</label>
+          </div>
+          <div class="question">
+            <p>19. Have you EVER lied to any U.S. Government officials to gain entry or admission into the United States or to gain immigration benefits while in the United States?</p>
+            <label><input type="radio" name="q_19" value="yes"> Yes</label>
+            <label><input type="radio" name="q_19" value="no"> No</label>
+          </div>
+          <div class="question">
+            <p>20. Have you EVER been placed in removal, rescission, or deportation proceedings?</p>
+            <label><input type="radio" name="q_20" value="yes"> Yes</label>
+            <label><input type="radio" name="q_20" value="no"> No</label>
+          </div>
+          <div class="question">
+            <p>21. Have you EVER been removed or deported from the United States?</p>
+            <label><input type="radio" name="q_21" value="yes"> Yes</label>
+            <label><input type="radio" name="q_21" value="no"> No</label>
+          </div>
+          <div class="question">
+            <p>22a. Are you a male who lived in the United States at any time between your 18th and 26th birthdays? (Do not select “Yes” if you were a lawful nonimmigrant for all of that time period.)</p>
+            <label><input type="radio" name="q_22a" value="yes"> Yes</label>
+            <label><input type="radio" name="q_22a" value="no"> No</label>
+          </div>
+          <div class="question">
+            <p>22b. If you answered “Yes” to Item Number 22.a., did you register for the Selective Service?</p>
+            <label><input type="radio" name="q_22b" value="yes"> Yes</label>
+            <label><input type="radio" name="q_22b" value="no"> No</label>
+          </div>
+          <div class="question">
+            <p>23. Have you EVER left the United States to avoid being drafted in the U.S. armed forces?</p>
+            <label><input type="radio" name="q_23" value="yes"> Yes</label>
+            <label><input type="radio" name="q_23" value="no"> No</label>
+          </div>
+          <div class="question">
+            <p>24. Have you EVER applied for any kind of exemption from military service in the U.S. armed forces?</p>
+            <label><input type="radio" name="q_24" value="yes"> Yes</label>
+            <label><input type="radio" name="q_24" value="no"> No</label>
+          </div>
+          <div class="question">
+            <p>25. Have you EVER served in the U.S. armed forces?</p>
+            <label><input type="radio" name="q_25" value="yes"> Yes</label>
+            <label><input type="radio" name="q_25" value="no"> No</label>
+          </div>
+          <div class="question">
+            <p>26a. Are you currently a member of the U.S. armed forces?</p>
+            <label><input type="radio" name="q_26a" value="yes"> Yes</label>
+            <label><input type="radio" name="q_26a" value="no"> No</label>
+          </div>
+          <div class="question">
+            <p>26c. If you answered “Yes” to Item Number 26.a., are you currently stationed outside the United States?</p>
+            <label><input type="radio" name="q_26c" value="yes"> Yes</label>
+            <label><input type="radio" name="q_26c" value="no"> No</label>
+          </div>
+          <div class="question">
+            <p>26d. If you answered “No” to Item Number 26.a., are you a former U.S. military service member who is currently residing outside of the U.S.?</p>
+            <label><input type="radio" name="q_26d" value="yes"> Yes</label>
+            <label><input type="radio" name="q_26d" value="no"> No</label>
+          </div>
+          <div class="question">
+            <p>27. Have you EVER been court-martialed or have you received a discharge characterized as other than honorable, bad conduct, or dishonorable, while in the U.S. armed forces?</p>
+            <label><input type="radio" name="q_27" value="yes"> Yes</label>
+            <label><input type="radio" name="q_27" value="no"> No</label>
+          </div>
+          <div class="question">
+            <p>28. Have you EVER been discharged from training or service in the U.S. armed forces because you were an alien?</p>
+            <label><input type="radio" name="q_28" value="yes"> Yes</label>
+            <label><input type="radio" name="q_28" value="no"> No</label>
+          </div>
+          <div class="question">
+            <p>29. Have you EVER deserted from the U.S. armed forces?</p>
+            <label><input type="radio" name="q_29" value="yes"> Yes</label>
+            <label><input type="radio" name="q_29" value="no"> No</label>
+          </div>
+          <div class="question">
+            <p>30a. Do you now have, or did you EVER have, a hereditary title or an order of nobility in any foreign country?</p>
+            <label><input type="radio" name="q_30a" value="yes"> Yes</label>
+            <label><input type="radio" name="q_30a" value="no"> No</label>
+          </div>
+          <div class="question">
+            <p>30b. If you answered "Yes" to 30a, are you willing to give up any inherited titles or orders of nobility that you have in a foreign country at your naturalization ceremony?</p>
+            <label><input type="radio" name="q_30b" value="yes"> Yes</label>
+            <label><input type="radio" name="q_30b" value="no"> No</label>
+          </div>
+          <div class="question">
+            <p>31. Do you support the Constitution and form of Government of the United States?</p>
+            <label><input type="radio" name="q_31" value="yes"> Yes</label>
+            <label><input type="radio" name="q_31" value="no"> No</label>
+          </div>
+          <div class="question">
+            <p>32. Do you understand the full Oath of Allegiance to the United States?</p>
+            <label><input type="radio" name="q_32" value="yes"> Yes</label>
+            <label><input type="radio" name="q_32" value="no"> No</label>
+          </div>
+          <div class="question">
+            <p>33. Are you unable to take the Oath of Allegiance because of a physical or developmental disability or mental impairment? If you answer “Yes,” skip Item Numbers 34. - 37. and see the Legal Guardian, Surrogate, or Designated Representative section in the Instructions</p>
+            <label><input type="radio" name="q_33" value="yes"> Yes</label>
+            <label><input type="radio" name="q_33" value="no"> No</label>
+          </div>
+          <div class="question">
+            <p>34. Are you willing to take the full Oath of Allegiance to the United States?</p>
+            <label><input type="radio" name="q_34" value="yes"> Yes</label>
+            <label><input type="radio" name="q_34" value="no"> No</label>
+          </div>
+          <div class="question">
+            <p>35. If the law requires it, are you willing to bear arms (carry weapons) on behalf of the United States?</p>
+            <label><input type="radio" name="q_35" value="yes"> Yes</label>
+            <label><input type="radio" name="q_35" value="no"> No</label>
+          </div>
+          <div class="question">
+            <p>36. If the law requires it, are you willing to perform noncombatant services (do something that does not include fighting in a war) in the U.S. armed forces?</p>
+            <label><input type="radio" name="q_36" value="yes"> Yes</label>
+            <label><input type="radio" name="q_36" value="no"> No</label>
+          </div>
+          <div class="question">
+            <p>37. If the law requires it, are you willing to perform work of national importance under civilian direction (do non-military work that the U.S. Government says is important to the country)?</p>
+            <label><input type="radio" name="q_37" value="yes"> Yes</label>
+            <label><input type="radio" name="q_37" value="no"> No</label>
+          </div>
+        </div>
+      </div>
+      
+      <button type="button" id="updatePreviewBtn">Update Preview</button>
+      <div id="errorMessage"></div>
+      <form id="uscis-form">
+        <button type="submit">Download Filled PDF</button>
+      </form>
+    </div>
+  </div>
+  
+  <script>
+  
+
+    // Toggle collapse/expand for yes/no questions section
+	const toggleBtn = document.getElementById("toggleQuestions");
+	const questionsContent = document.getElementById("questionsContent");
+
+	toggleBtn.addEventListener("click", () => {
+		const collapsed = questionsContent.classList.toggle("collapsed");
+		toggleBtn.innerText = collapsed ? "Expand" : "Collapse";
+	});
+
+    
+    // Show/hide yes/no questions based on the selected form
+    const n400Questions = document.getElementById("n400Questions");
+    const formSelect = document.getElementById("formSelect");
+    formSelect.addEventListener("change", function() {
+      n400Questions.style.display = (this.value === "n400_conv.pdf") ? "block" : "none";
+    });
+    if(formSelect.value === "n400_conv.pdf"){
+      n400Questions.style.display = "block";
+    } else {
+      n400Questions.style.display = "none";
+    }
+    
+    // Dark mode toggle
+    const darkModeSwitch = document.getElementById("darkModeSwitch");
+    darkModeSwitch.addEventListener("change", function() {
+      if (this.checked) {
+        document.body.classList.add("dark-mode");
+      } else {
+        document.body.classList.remove("dark-mode");
+      }
+    });
+    
+    // Text size controls
+    const decreaseTextSizeButton = document.getElementById("decreaseTextSize");
+    const increaseTextSizeButton = document.getElementById("increaseTextSize");
+    const textSizeDisplay = document.getElementById("textSizeDisplay");
+    let currentFontSize = 16;
+    decreaseTextSizeButton.addEventListener("click", () => {
+      if (currentFontSize > 10) {
+        currentFontSize -= 1;
+        textSizeDisplay.innerText = currentFontSize;
+        document.querySelector("#formPane").style.fontSize = currentFontSize + "px";
+        document.querySelector("#pdfPane").style.fontSize = currentFontSize + "px";
+      }
+    });
+    increaseTextSizeButton.addEventListener("click", () => {
+      if (currentFontSize < 30) {
+        currentFontSize += 1;
+        textSizeDisplay.innerText = currentFontSize;
+        document.querySelector("#formPane").style.fontSize = currentFontSize + "px";
+        document.querySelector("#pdfPane").style.fontSize = currentFontSize + "px";
+      }
+    });
+    
+    const pdfPreview = document.getElementById("pdfPreview");
+    const updatePreviewBtn = document.getElementById("updatePreviewBtn");
+    const resizer = document.getElementById("resizer");
+    const pdfPane = document.getElementById("pdfPane");
+    let originalPdfBytes = null;
+    let font = null;
+    let validateOnUpdate = false;
+    
+    /* Field coordinate mappings.
+       For "n400_conv.pdf", each yes/no question is assigned its own overlay coordinates.
+       (These dummy coordinates decrement by 10 in y for each question; adjust as needed.)
+    */
+    const fieldCoords = {
+      "i912_conv.pdf": {
+        firstName:  { page: 0, x: 280, y: 178 },
+        middleName: { page: 0, x: 445, y: 178 },
+        lastName:   { page: 0, x: 57, y: 178 },
+		dob:        { page: 0, x: 65, y: 120 },
+        ssn:        { page: 1, x: 235, y: 705 },
+        phone:      { page: 4, x: 57, y: 465 },
+        email:      { page: 4, x: 57, y: 430 },
+        mailAddress:{ page: 1, x: 50, y: 610 },
+        mailCity:   { page: 1, x: 50, y: 595 },
+        mailCountry:{ page: 1, x: 50, y: 570 },
+        mailState:  { page: 1, x: 200, y: 595 },
+        mailProvince:{ page: 1, x: 200, y: 575 },
+        mailZip:    { page: 1, x: 350, y: 595 },
+        mailPostal: { page: 1, x: 350, y: 595 }
+      },
+      "n400_conv.pdf": {
+        firstName:  { page: 0, x: 280, y: 136 },
+        middleName: { page: 0, x: 445, y: 136 },
+        lastName:   { page: 0, x: 63, y: 136 },
+		dob:        { page: 0, x: 65, y: 120 },
+        ssn:        { page: 1, x: 290, y: 135 },
+        phone:      { page: 10, x: 67, y: 378 },
+        email:      { page: 10, x: 67, y: 341 },
+        mailAddress:{ page: 2, x: 67, y: 317 },
+        mailCity:   { page: 2, x: 67, y: 280 },
+        mailCountry:{ page: 2, x: 356, y: 243 },
+        mailState:  { page: 2, x: 447, y: 280 },
+        mailProvince:{ page: 2, x: 67, y: 243 },
+        mailZip:    { page: 2, x: 520, y: 280 },
+        mailPostal: { page: 2, x: 225, y: 243 },
+        "q_1": { yes: { page: 2, x: 100, y: 300 }, no: { page: 2, x: 150, y: 300 } },
+        "q_2": { yes: { page: 2, x: 100, y: 290 }, no: { page: 2, x: 150, y: 290 } },
+        "q_3": { yes: { page: 2, x: 100, y: 280 }, no: { page: 2, x: 150, y: 280 } },
+        "q_4": { yes: { page: 2, x: 100, y: 270 }, no: { page: 2, x: 150, y: 270 } },
+        "q_5a": { yes: { page: 2, x: 100, y: 260 }, no: { page: 2, x: 150, y: 260 } },
+        "q_5b": { yes: { page: 2, x: 100, y: 250 }, no: { page: 2, x: 150, y: 250 } },
+        "q_6a": { yes: { page: 2, x: 100, y: 240 }, no: { page: 2, x: 150, y: 240 } },
+        "q_6b": { yes: { page: 2, x: 100, y: 230 }, no: { page: 2, x: 150, y: 230 } },
+        "q_6c": { yes: { page: 2, x: 100, y: 220 }, no: { page: 2, x: 150, y: 220 } },
+        "q_7a": { yes: { page: 2, x: 100, y: 210 }, no: { page: 2, x: 150, y: 210 } },
+        "q_7b": { yes: { page: 2, x: 100, y: 200 }, no: { page: 2, x: 150, y: 200 } },
+        "q_7c": { yes: { page: 2, x: 100, y: 190 }, no: { page: 2, x: 150, y: 190 } },
+        "q_7d": { yes: { page: 2, x: 100, y: 180 }, no: { page: 2, x: 150, y: 180 } },
+        "q_7e": { yes: { page: 2, x: 100, y: 170 }, no: { page: 2, x: 150, y: 170 } },
+        "q_7f": { yes: { page: 2, x: 100, y: 160 }, no: { page: 2, x: 150, y: 160 } },
+        "q_7g": { yes: { page: 2, x: 100, y: 150 }, no: { page: 2, x: 150, y: 150 } },
+        "q_8a": { yes: { page: 2, x: 100, y: 140 }, no: { page: 2, x: 150, y: 140 } },
+        "q_8b": { yes: { page: 2, x: 100, y: 130 }, no: { page: 2, x: 150, y: 130 } },
+        "q_9": { yes: { page: 2, x: 100, y: 120 }, no: { page: 2, x: 150, y: 120 } },
+        "q_10a": { yes: { page: 2, x: 100, y: 110 }, no: { page: 2, x: 150, y: 110 } },
+        "q_10b": { yes: { page: 2, x: 100, y: 100 }, no: { page: 2, x: 150, y: 100 } },
+        "q_10c": { yes: { page: 2, x: 100, y: 90  }, no: { page: 2, x: 150, y: 90  } },
+        "q_11": { yes: { page: 2, x: 100, y: 80  }, no: { page: 2, x: 150, y: 80  } },
+        "q_12": { yes: { page: 2, x: 100, y: 70  }, no: { page: 2, x: 150, y: 70  } },
+        "q_13": { yes: { page: 2, x: 100, y: 60  }, no: { page: 2, x: 150, y: 60  } },
+        "q_14": { yes: { page: 2, x: 100, y: 50  }, no: { page: 2, x: 150, y: 50  } },
+        "q_15a": { yes: { page: 2, x: 100, y: 40  }, no: { page: 2, x: 150, y: 40  } },
+        "q_15b": { yes: { page: 2, x: 100, y: 30  }, no: { page: 2, x: 150, y: 30  } },
+        "q_16": { yes: { page: 2, x: 100, y: 20  }, no: { page: 2, x: 150, y: 20  } },
+        "q_17a": { yes: { page: 2, x: 100, y: 10  }, no: { page: 2, x: 150, y: 10  } },
+        "q_17b": { yes: { page: 2, x: 100, y: 0   }, no: { page: 2, x: 150, y: 0   } },
+        "q_17c": { yes: { page: 2, x: 100, y: -10 }, no: { page: 2, x: 150, y: -10 } },
+        "q_17d": { yes: { page: 2, x: 100, y: -20 }, no: { page: 2, x: 150, y: -20 } },
+        "q_17e": { yes: { page: 2, x: 100, y: -30 }, no: { page: 2, x: 150, y: -30 } },
+        "q_17f": { yes: { page: 2, x: 100, y: -40 }, no: { page: 2, x: 150, y: -40 } },
+        "q_17g": { yes: { page: 2, x: 100, y: -50 }, no: { page: 2, x: 150, y: -50 } },
+        "q_17h": { yes: { page: 2, x: 100, y: -60 }, no: { page: 2, x: 150, y: -60 } },
+        "q_18": { yes: { page: 2, x: 100, y: -70 }, no: { page: 2, x: 150, y: -70 } },
+        "q_19": { yes: { page: 2, x: 100, y: -80 }, no: { page: 2, x: 150, y: -80 } },
+        "q_20": { yes: { page: 2, x: 100, y: -90 }, no: { page: 2, x: 150, y: -90 } },
+        "q_21": { yes: { page: 2, x: 100, y: -100 }, no: { page: 2, x: 150, y: -100 } },
+        "q_22a": { yes: { page: 2, x: 100, y: -110 }, no: { page: 2, x: 150, y: -110 } },
+        "q_22b": { yes: { page: 2, x: 100, y: -120 }, no: { page: 2, x: 150, y: -120 } },
+        "q_23": { yes: { page: 2, x: 100, y: -130 }, no: { page: 2, x: 150, y: -130 } },
+        "q_24": { yes: { page: 2, x: 100, y: -140 }, no: { page: 2, x: 150, y: -140 } },
+        "q_25": { yes: { page: 2, x: 100, y: -150 }, no: { page: 2, x: 150, y: -150 } },
+        "q_26a": { yes: { page: 2, x: 100, y: -160 }, no: { page: 2, x: 150, y: -160 } },
+        "q_26c": { yes: { page: 2, x: 100, y: -170 }, no: { page: 2, x: 150, y: -170 } },
+        "q_26d": { yes: { page: 2, x: 100, y: -180 }, no: { page: 2, x: 150, y: -180 } },
+        "q_27": { yes: { page: 2, x: 100, y: -190 }, no: { page: 2, x: 150, y: -190 } },
+        "q_28": { yes: { page: 2, x: 100, y: -200 }, no: { page: 2, x: 150, y: -200 } },
+        "q_29": { yes: { page: 2, x: 100, y: -200 }, no: { page: 2, x: 150, y: -200 } },
+        "q_30a": { yes: { page: 2, x: 100, y: -200 }, no: { page: 2, x: 150, y: -200 } },
+        "q_30b": { yes: { page: 2, x: 100, y: -200 }, no: { page: 2, x: 150, y: -200 } },
+        "q_31": { yes: { page: 2, x: 100, y: -200 }, no: { page: 2, x: 150, y: -200 } },
+        "q_32": { yes: { page: 2, x: 100, y: -200 }, no: { page: 2, x: 150, y: -200 } },
+        "q_33": { yes: { page: 2, x: 100, y: -200 }, no: { page: 2, x: 150, y: -200 } },
+        "q_34": { yes: { page: 2, x: 100, y: -200 }, no: { page: 2, x: 150, y: -200 } },
+        "q_35": { yes: { page: 2, x: 100, y: -200 }, no: { page: 2, x: 150, y: -200 } },
+        "q_36": { yes: { page: 2, x: 100, y: -200 }, no: { page: 2, x: 150, y: -200 } },
+        "q_37": { yes: { page: 2, x: 100, y: -200 }, no: { page: 2, x: 150, y: -200 } }
+      },
+      "n600_conv.pdf": {
+        firstName:  { page: 0, x: 80, y: 720 },
+        middleName: { page: 0, x: 170, y: 720 },
+        lastName:   { page: 0, x: 320, y: 720 },
+		dob:        { page: 0, x: 65, y: 120 },
+        ssn:        { page: 0, x: 80, y: 690 },
+        phone:      { page: 0, x: 80, y: 670 },
+        email:      { page: 0, x: 80, y: 655 },
+        mailAddress:{ page: 1, x: 80, y: 640 },
+        mailCity:   { page: 1, x: 80, y: 625 },
+        mailCountry:{ page: 1, x: 80, y: 610 },
+        mailState:  { page: 1, x: 230, y: 625 },
+        mailProvince:{ page: 1, x: 230, y: 615 },
+        mailZip:    { page: 1, x: 380, y: 625 },
+        mailPostal: { page: 1, x: 380, y: 625 }
+      }
+    };
+    
+    // Resizer code
+    let isResizing = false;
+    const resizeOverlay = document.createElement('div');
+    resizeOverlay.style.display = 'none';
+    resizeOverlay.style.position = 'fixed';
+    resizeOverlay.style.top = 0;
+    resizeOverlay.style.left = 0;
+    resizeOverlay.style.right = 0;
+    resizeOverlay.style.bottom = 0;
+    resizeOverlay.style.cursor = 'ew-resize';
+    resizeOverlay.style.zIndex = 9999;
+    document.body.appendChild(resizeOverlay);
+    resizer.addEventListener('mousedown', (e) => {
+      isResizing = true;
+      resizeOverlay.style.display = 'block';
+      document.body.style.cursor = 'ew-resize';
+      e.preventDefault();
+    });
+    document.addEventListener('mousemove', (e) => {
+      if (!isResizing) return;
+      const newWidth = e.clientX;
+      if (newWidth > 250 && newWidth < window.innerWidth - 250) {
+        pdfPane.style.width = `${newWidth}px`;
+      }
+    });
+    document.addEventListener('mouseup', () => {
+      if (isResizing) {
+        isResizing = false;
+        resizeOverlay.style.display = 'none';
+        document.body.style.cursor = 'default';
+      }
+    });
+    
+    function maskSSN(value) {
+      let digits = value.replace(/\D/g, '').substring(0, 9);
+      if (digits.length > 5) {
+        return digits.slice(0, 3) + "-" + digits.slice(3, 5) + "-" + digits.slice(5);
+      } else if (digits.length > 3) {
+        return digits.slice(0, 3) + "-" + digits.slice(3);
+      } else {
+        return digits;
+      }
+    }
+    function maskPhone(value) {
+      let digits = value.replace(/\D/g, '').substring(0, 10);
+      if (digits.length > 6) {
+        return digits.slice(0, 3) + "-" + digits.slice(3, 6) + "-" + digits.slice(6);
+      } else if (digits.length > 3) {
+        return digits.slice(0, 3) + "-" + digits.slice(3);
+      } else {
+        return digits;
+      }
+    }
+    document.getElementById("ssn").addEventListener("input", function() {
+      this.value = maskSSN(this.value);
+    });
+    document.getElementById("phone").addEventListener("input", function() {
+      this.value = maskPhone(this.value);
+    });
+    
+	
+	
+	function updateStateField() {
+		const country = document.getElementById("mailCountry").value;
+		const stateContainer = document.getElementById("mailStateContainer");
+		stateContainer.innerHTML = "";
+
+		if (country === "US") {
+			const stateSelect = document.createElement("select");
+			stateSelect.id = "mailState";
+			const states = ["Alabama", "Alaska", "Arizona", "Arkansas", "California", "Colorado", "Connecticut", "Delaware",
+			"Florida", "Georgia", "Hawaii", "Idaho", "Illinois", "Indiana", "Iowa", "Kansas", "Kentucky",
+			"Louisiana", "Maine", "Maryland", "Massachusetts", "Michigan", "Minnesota", "Mississippi",
+			"Missouri", "Montana", "Nebraska", "Nevada", "New Hampshire", "New Jersey", "New Mexico",
+			"New York", "North Carolina", "North Dakota", "Ohio", "Oklahoma", "Oregon", "Pennsylvania",
+			"Rhode Island", "South Carolina", "South Dakota", "Tennessee", "Texas", "Utah", "Vermont",
+			"Virginia", "Washington", "West Virginia", "Wisconsin", "Wyoming"];
+		stateSelect.innerHTML = states.map(s => `<option value="${s}">${s}</option>`).join("");
+		stateContainer.appendChild(stateSelect);
+		} else {
+		const provinceField = document.createElement("input");
+		provinceField.type = "text";
+		provinceField.id = "mailProvince";
+		stateContainer.appendChild(provinceField);
+		}
+	}
+
+	document.getElementById("mailCountry").addEventListener("change", () => {
+		updateStateField();
+		updateZipField(); // Keep ZIP/Postal sync
+	});
+
+	updateStateField(); // Run once on load
+	updateZipField();
+
+
+    function updateZipField() {
+      const country = document.getElementById("mailCountry").value;
+      const zipContainer = document.getElementById("zipContainer");
+      const zipLabel = document.getElementById("zipLabel");
+      while (zipContainer.firstChild) {
+        zipContainer.removeChild(zipContainer.firstChild);
+      }
+      if (country === "US") {
+        zipLabel.innerText = "ZIP Code:";
+        let zipField = document.createElement("input");
+        zipField.type = "tel";
+        zipField.id = "mailZip";
+        zipField.maxLength = "5";
+        zipField.placeholder = "12345";
+        zipContainer.appendChild(zipField);
+      } else {
+        zipLabel.innerText = "Postal Code:";
+        let postalField = document.createElement("input");
+        postalField.type = "tel";
+        postalField.id = "mailPostal";
+        postalField.maxLength = "5";
+        postalField.placeholder = "12345";
+        zipContainer.appendChild(postalField);
+      }
+    }
+    
+    function validateInputs() {
+      const ssnInput = document.getElementById("ssn").value;
+      const phoneInput = document.getElementById("phone").value;
+      const country = document.getElementById("mailCountry").value;
+      let zipDigits = "";
+      if (country === "US") {
+        zipDigits = document.getElementById("mailZip").value.replace(/\D/g, '');
+      } else {
+        zipDigits = document.getElementById("mailPostal").value.replace(/\D/g, '');
+      }
+      const ssnDigits = ssnInput.replace(/\D/g, '');
+      const phoneDigits = phoneInput.replace(/\D/g, '');
+      let errors = [];
+      if (ssnDigits.length !== 9) {
+        errors.push("SSN must contain exactly 9 digits.");
+      }
+      if (phoneDigits.length !== 10) {
+        errors.push("Phone number must contain exactly 10 digits.");
+      }
+      if (zipDigits.length !== 5) {
+        if (country === "US") {
+          errors.push("ZIP must contain exactly 5 digits.");
+        } else {
+          errors.push("Postal Code must contain exactly 5 digits.");
+        }
+      }
+	  
+	  const dobValue = document.getElementById("dob").value;
+		if (dobValue) {
+			const today = new Date().toISOString().split("T")[0];
+            if (dobValue > today) {
+				errors.push("Date of Birth cannot be in the future.");
+			}
+		}
+	  
+	  
+      const errorMessageDiv = document.getElementById("errorMessage");
+      if (errors.length > 0) {
+        errorMessageDiv.innerText = errors.join(" ");
+        return false;
+      } else {
+        errorMessageDiv.innerText = "";
+        return true;
+      }
+    }
+    
+    function formatSSN(ssn) {
+      let digits = ssn.replace(/\D/g, '');
+      if (digits.length === 9) {
+        return digits.slice(0, 3) + "-" + digits.slice(3, 5) + "-" + digits.slice(5);
+      }
+      return ssn;
+    }
+    function formatPhone(phone) {
+      let digits = phone.replace(/\D/g, '');
+      if (digits.length === 10) {
+        return digits.slice(0, 3) + "-" + digits.slice(3, 6) + "-" + digits.slice(6);
+      }
+      return phone;
+    }
+    
+    async function loadPDF(filename) {
+      const res = await fetch(filename);
+      originalPdfBytes = await res.arrayBuffer();
+      await updatePreview();
+    }
+    
+    async function updatePreview() {
+      if (!originalPdfBytes) return;
+      if (validateOnUpdate && !validateInputs()) return;
+      const pdfDoc = await PDFLib.PDFDocument.load(originalPdfBytes, { ignoreEncryption: true });
+      const pages = pdfDoc.getPages();
+      if (!font) font = await pdfDoc.embedFont(PDFLib.StandardFonts.Helvetica);
+      const currentForm = formSelect.value;
+      const coords = fieldCoords[currentForm];
+      
+      // Draw standard fields.
+
+	  
+		const drawField = (fieldId, fieldName) => {
+		  const el = document.getElementById(fieldId);
+		  if (!el) return; // Skip if field doesn't exist
+
+		  let value;
+		  if (fieldId === "mailCountry") {
+			value = el.options[el.selectedIndex].text;
+		  } else {
+			value = el.value;
+
+			if (fieldId === "ssn") {
+			  value = formatSSN(value);
+			} else if (fieldId === "phone") {
+			  value = formatPhone(value);
+			} else if (fieldId === "dob") {
+			  const parts = value.split("-");
+			  if (parts.length === 3) {
+				value = `${parts[1]}/${parts[2]}/${parts[0]}`; // MM/DD/YYYY
+			  }
+			}
+		  }
+
+		  if (coords && coords[fieldName] && value) {
+			if (coords[fieldName].page !== undefined) {
+			  const { page, x, y } = coords[fieldName];
+			  if (pages[page]) {
+				pages[page].drawText(value, { x, y, size: 10, font });
+			  }
+			}
+		  }
+		};
+
+      
+      drawField("firstName", "firstName");
+      drawField("middleName", "middleName");
+      drawField("lastName", "lastName");
+      drawField("ssn", "ssn");
+	  drawField("dob", "dob");
+      drawField("phone", "phone");
+      drawField("email", "email");
+      drawField("mailCountry", "mailCountry");
+      drawField("mailAddress", "mailAddress");
+      drawField("mailCity", "mailCity");
+	  
+
+      if (document.getElementById("mailCountry").value === "US") {
+        drawField("mailState", "mailState");
+        drawField("mailZip", "mailZip");
+      } else {
+        drawField("mailProvince", "mailProvince");
+        drawField("mailPostal", "mailPostal");
+      }
+      
+      // Process each yes/no question individually.
+      // Only draw an "X" if a radio button is selected.
+      const processQuestion = (questionName) => {
+        const input = document.querySelector(`input[name="${questionName}"]:checked`);
+        if (input && coords[questionName] && coords[questionName][input.value]) {
+          const { page, x, y } = coords[questionName][input.value];
+          pages[page].drawText("X", { x, y, size: 10, font });
+        }
+      };
+      
+      processQuestion("q_1");
+      processQuestion("q_2");
+      processQuestion("q_3");
+      processQuestion("q_4");
+      processQuestion("q_5a");
+      processQuestion("q_5b");
+      processQuestion("q_6a");
+      processQuestion("q_6b");
+      processQuestion("q_6c");
+      processQuestion("q_7a");
+      processQuestion("q_7b");
+      processQuestion("q_7c");
+      processQuestion("q_7d");
+      processQuestion("q_7e");
+      processQuestion("q_7f");
+      processQuestion("q_7g");
+      processQuestion("q_8a");
+      processQuestion("q_8b");
+      processQuestion("q_9");
+      processQuestion("q_10a");
+      processQuestion("q_10b");
+      processQuestion("q_10c");
+      processQuestion("q_11");
+      processQuestion("q_12");
+      processQuestion("q_13");
+      processQuestion("q_14");
+      processQuestion("q_15a");
+      processQuestion("q_15b");
+      processQuestion("q_16");
+      processQuestion("q_17a");
+      processQuestion("q_17b");
+      processQuestion("q_17c");
+      processQuestion("q_17d");
+      processQuestion("q_17e");
+      processQuestion("q_17f");
+      processQuestion("q_17g");
+      processQuestion("q_17h");
+      processQuestion("q_18");
+      processQuestion("q_19");
+      processQuestion("q_20");
+      processQuestion("q_21");
+      processQuestion("q_22a");
+      processQuestion("q_22b");
+      processQuestion("q_23");
+      processQuestion("q_24");
+      processQuestion("q_25");
+      processQuestion("q_26a");
+      processQuestion("q_26c");
+      processQuestion("q_26d");
+      processQuestion("q_27");
+      processQuestion("q_28");
+      processQuestion("q_29");
+      processQuestion("q_30a");
+      processQuestion("q_30b");
+      processQuestion("q_31");
+      processQuestion("q_32");
+      processQuestion("q_33");
+      processQuestion("q_34");
+      processQuestion("q_35");
+      processQuestion("q_36");
+      processQuestion("q_37");
+      
+      const pdfBytes = await pdfDoc.save();
+      const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+      pdfPreview.src = URL.createObjectURL(blob);
+    }
+    
+    // Allow radio buttons to be deselected when clicked again.
+    document.querySelectorAll('input[type="radio"]').forEach((radio) => {
+      radio.addEventListener('mousedown', function() {
+        this.wasChecked = this.checked;
+      });
+      radio.addEventListener('click', function(e) {
+        if (this.wasChecked) {
+          this.checked = false;
+          this.wasChecked = false;
+          e.stopPropagation();
+        }
+      });
+    });
+    
+    updatePreviewBtn.addEventListener("click", updatePreview);
+    formSelect.addEventListener("change", () => {
+      loadPDF(formSelect.value);
+    });
+    
+    loadPDF(formSelect.value);
+	
+	
+    
+  </script>
+</body>
+</html>
