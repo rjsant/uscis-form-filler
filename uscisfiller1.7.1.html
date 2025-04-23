@@ -4487,6 +4487,29 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 });
 
+
+// Make all sections collapsed by default
+document.addEventListener('DOMContentLoaded', function() {
+  // Add the 'collapsed' class to all collapsible content sections
+  document.querySelectorAll('.collapsible-content').forEach(content => {
+    content.classList.add('collapsed');
+  });
+  
+  // Update all toggle buttons to say "Expand"
+  document.querySelectorAll('.collapsible-toggle').forEach(btn => {
+    btn.innerText = "Expand";
+  });
+  
+  // Also collapse the questions section if it exists
+  const questionsContent = document.getElementById('questionsContent');
+  if (questionsContent) {
+    questionsContent.classList.add('collapsed');
+    const toggleBtn = document.getElementById('toggleQuestions');
+    if (toggleBtn) {
+      toggleBtn.innerText = "Expand";
+    }
+  }
+});
 </script>
 
 
