@@ -1,0 +1,4961 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <title>USCIS PDF Filler</title>
+  <script src="https://unpkg.com/pdf-lib/dist/pdf-lib.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter&display=swap" rel="stylesheet">
+ 
+<style>
+  /* Transition for all key elements */
+  body, input, select, button, fieldset, #pdfPane, #formPane {
+    transition: background 0.4s ease, color 0.4s ease, border-color 0.4s ease;
+  }
+
+  * { box-sizing: border-box; }
+
+  /* Layout */
+  body {
+    margin: 0;
+    font-family: 'Inter', sans-serif;
+    font-weight: 1000;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    background: #f4f4f7;
+    color: #222;
+    font-size: 16px;
+  }
+
+  .container {
+	  display: flex;
+	  height: 100vh;
+	  overflow: auto;
+	  flex-direction: row;
+	}
+
+  #pdfPane {
+    min-width: 250px;
+    max-width: 90vw;
+    width: 40%;
+    padding: 1rem;
+    background: #f0f0f0;
+    display: flex;
+    flex-direction: column;
+    border-radius: 10px;
+	overflow-y: auto; /* ← new */
+    height: 100vh;    /* ← new */
+  }
+
+  #formPane {
+    flex: 1;
+    padding: 1rem;
+	height: 100vh;
+    overflow-y: auto;
+    background: #f7f7f7;
+  }
+
+  iframe {
+    width: 100%;
+    height: 100%;
+	border: 1px solid #ccc;
+	flex-grow: 1;
+  }
+
+  .resizer {
+    width: 5px;
+    background: #ccc;
+    cursor: ew-resize;
+  }
+
+  /* Form Controls */
+  fieldset {
+    margin-bottom: 1rem;
+    background: #ffffff;
+    border: 1px solid #ccc;
+    padding: 1rem;
+    border-radius: 10px;
+  }
+
+  label {
+    display: block;
+    margin-bottom: 0.5em;
+  }
+
+  input, select, button, textarea {
+    padding: 0.4em;
+    font-size: 1em;
+    border-radius: 6px;
+  }
+
+  button {
+    background-color: #007bff;
+    color: white;
+    border: 1px solid #007bff;
+    padding: 0.5em;
+    cursor: pointer;
+    margin-top: 1rem;
+  }
+
+  button:hover {
+    background-color: #0056b3;
+  }
+
+  #errorMessage {
+    color: red;
+    margin-top: 10px;
+    font-weight: bold;
+  }
+
+  /* Top Controls */
+  #topControls {
+    position: fixed;
+    top: 10px;
+    right: 30px;
+    z-index: 10000;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    background: #eee;
+    border: 1px solid #ccc;
+    padding: 5px 8px;
+    border-radius: 10px;
+    font-size: 16px;
+  }
+
+  #topControls span {
+    font-size: 1em;
+    color: #333;
+  }
+
+  /* Dark Mode Toggle */
+  .switch {
+    position: relative;
+    display: inline-block;
+    width: 60px;
+    height: 34px;
+  }
+
+  .switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+  }
+
+  .slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background-color: #888;
+    transition: .4s;
+  }
+
+  .slider:before {
+    position: absolute;
+    content: "";
+    height: 26px;
+    width: 26px;
+    left: 4px;
+    bottom: 4px;
+    background-color: #2196F3;
+    transition: .4s;
+  }
+
+  input:checked + .slider:before {
+    transform: translateX(26px);
+  }
+
+  .slider.round { border-radius: 34px; }
+  .slider.round:before { border-radius: 50%; }
+
+  /* Text Size Controls */
+  #textSizeControls {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  #textSizeControls .sizeButtons {
+    display: inline-flex;
+    gap: 5px;
+  }
+
+  /* Collapsible Sections */
+  .collapsible-section {
+    border: 1px solid #ccc;
+    background: #fff;
+    margin: 1em 0;
+    border-radius: 10px;
+    transition: background 0.4s ease, border-color 0.4s ease;
+  }
+
+  .collapsible-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5em;
+    background: #f0f0f0;
+    border-bottom: 1px solid #ccc;
+    border-top-left-radius: 10px;
+    border-top-right-radius: 10px;
+  }
+
+  .collapsible-header h3 {
+    margin: 0;
+    font-size: 1em;
+  }
+
+  .collapsible-toggle {
+    background-color: #007bff;
+    border: none;
+    color: #fff;
+    padding: 0.3em 0.6em;
+    cursor: pointer;
+    font-size: 0.9em;
+    border-radius: 4px;
+  }
+
+  .collapsible-content {
+    overflow: hidden;
+    max-height: 10000px;
+    transition: max-height 0.5s ease-out, padding 0.5s ease;
+    padding: 0.5em;
+  }
+
+  .collapsible-content.collapsed {
+    max-height: 0;
+    padding: 0;
+  }
+
+  /* Yes/No Questions Block */
+  #n400Questions {
+    border: 1px solid #ccc;
+    border-radius: 10px;
+    background: #fff;
+    margin: 1em 0;
+    transition: background 0.4s ease, border-color 0.4s ease;
+  }
+
+  #questionsHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5em;
+    background: #f0f0f0;
+    border-bottom: 1px solid #ccc;
+    border-top-left-radius: 10px;
+    border-top-right-radius: 10px;
+  }
+
+  #questionsHeader h3 {
+    margin: 0;
+    font-size: 1em;
+  }
+
+  #toggleQuestions {
+    background-color: #007bff;
+    border: none;
+    color: white;
+    padding: 0.3em 0.6em;
+    cursor: pointer;
+    font-size: 0.9em;
+    border-radius: 4px;
+  }
+
+  #questionsContent {
+	  overflow-y: auto; /* Change from hidden to auto for vertical scroll */
+	  max-height: 400px; /* Set a fixed height */
+	  transition: max-height 0.5s ease-out, padding 0.5s ease;
+	  padding: 0.5em;
+  }
+  
+  #questionsHeader {
+	  position: sticky;
+	  top: 0;
+	  z-index: 1;
+	  background: #f0f0f0;
+}
+
+  .question {
+    margin-bottom: 1em;
+  }
+
+  #questionsContent.collapsed {
+    max-height: 0;
+    padding: 0;
+  }
+
+  /* Dark Mode Styling */
+  body.dark-mode {
+    background: #1e1e2f;
+    color: #e0e0e0;
+  }
+
+  body.dark-mode input,
+  body.dark-mode select,
+  body.dark-mode textarea {
+    background: #2c2c3a !important;
+    color: #e0e0e0 !important;
+    border: 1px solid #3a3a55 !important;
+  }
+
+  body.dark-mode select {
+    appearance: none;
+    background: #333 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 4 5'%3E%3Cpath fill='currentColor' d='M2 0L0 2h4z'/%3E%3C/svg%3E") no-repeat right 10px center;
+    background-size: 10px 12px;
+    color: #e0e0e0;
+  }
+
+  body.dark-mode fieldset {
+    background: #1e1e2f !important;
+    border: 1px solid #1e1e2f !important;
+  }
+
+  body.dark-mode button {
+    background-color: #2196F3 !important;
+    border: 1px solid #2196F3 !important;
+    color: #fff !important;
+  }
+
+  body.dark-mode #pdfPane { background: #333; }
+  body.dark-mode #formPane { background: #222; }
+
+  body.dark-mode #topControls {
+    background: #444;
+    border: 1px solid #666;
+  }
+
+  body.dark-mode #topControls span {
+    color: #e0e0e0;
+  }
+
+  /* Collapsible (Dark Mode) */
+  body.dark-mode .collapsible-section {
+    background: #1e1e2f;
+    border: 1px solid #1e1e2f;
+  }
+
+  body.dark-mode .collapsible-header {
+    background: #1e1e2f;
+    border-bottom: 1px solid #1e1e2f;
+  }
+
+  body.dark-mode .collapsible-toggle {
+    background-color: #2196F3;
+    border: 1px solid #2196F3;
+    color: white;
+  }
+
+  /* Yes/No Block (Dark Mode) */
+  body.dark-mode #n400Questions {
+    background: #1e1e2f;
+    border: 1px solid #1e1e2f;
+  }
+
+  body.dark-mode #questionsHeader {
+    background: #1e1e2f;
+    border-bottom: 1px solid #1e1e2f;
+  }
+
+  body.dark-mode #questionsContent {
+    background: #1e1e2f;
+    color: #e0e0e0;
+  }
+
+  body.dark-mode #toggleQuestions {
+    background-color: #2196F3;
+    border: 1px solid #2196F3;
+    color: white;
+  }
+  
+  .child-info {
+  margin-bottom: 1.5rem;
+  padding: 1rem;
+  border: 1px solid #eee;
+  border-radius: 8px;
+  background-color: #f9f9f9;
+}
+
+.child-info h4 {
+  margin-top: 0;
+  margin-bottom: 0.5rem;
+  color: #007bff;
+}
+
+.child-info label {
+  display: block;
+  margin-bottom: 0.5rem;
+}
+
+.child-info select {
+  width: 100%;
+  padding: 0.4rem;
+}
+
+body.dark-mode .child-info {
+  background-color: #252533;
+  border-color: #333;
+}
+
+body.dark-mode .child-info h4 {
+  color: #4da3ff;
+  
+ .employment-entry {
+  margin-bottom: 1.5rem;
+  padding: 1rem;
+  border: 1px solid #eee;
+  border-radius: 8px;
+  background-color: #f9f9f9;
+}
+
+.employment-entry h4 {
+  margin-top: 0;
+  margin-bottom: 1rem;
+  color: #007bff;
+}
+
+.employment-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem;
+}
+
+.grid-item {
+  margin-bottom: 1rem;
+}
+
+.date-range {
+  display: flex;
+  gap: 1rem;
+}
+
+body.dark-mode .employment-entry {
+  background-color: #252533;
+  border-color: #333;
+}
+
+body.dark-mode .employment-entry h4 {
+  color: #4da3ff;
+}
+
+
+.travel-entry {
+  margin-bottom: 1.5rem;
+  padding: 1rem;
+  border: 1px solid #eee;
+  border-radius: 8px;
+  background-color: #f9f9f9;
+}
+
+.travel-entry h4 {
+  margin-top: 0;
+  margin-bottom: 1rem;
+  color: #007bff;
+}
+
+.travel-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem;
+}
+
+body.dark-mode .travel-entry {
+  background-color: #252533;
+  border-color: #333;
+}
+
+body.dark-mode .travel-entry h4 {
+  color: #4da3ff;
+}
+
+.travel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.removeTripBtn {
+  background-color: #dc3545;
+  color: white;
+  border: none;
+  padding: 0.3em 0.6em;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.removeTripBtn:hover {
+  background-color: #c82333;
+}
+}
+</style>
+
+</head>
+<body>
+  <!-- Top Controls -->
+  <div id="topControls">
+    <div id="darkModeToggle">
+      <label class="switch">
+        <input type="checkbox" id="darkModeSwitch">
+        <span class="slider round"></span>
+      </label>
+      <span>Dark Mode</span>
+    </div>
+    <div id="textSizeControls">
+      <span>Text Size:</span>
+      <div class="sizeButtons">
+        <button type="button" id="decreaseTextSize">-</button>
+        <button type="button" id="increaseTextSize">+</button>
+      </div>
+      <span id="textSizeDisplay">16</span>
+    </div>
+  </div>
+
+  <!-- Main Interface Container -->
+  <div class="container">
+    <div id="pdfPane">
+      <iframe id="pdfPreview"></iframe>
+    </div>
+    <div class="resizer" id="resizer"></div>
+    <div id="formPane">
+      <h2>USCIS PDF Filler</h2>
+      <label>Select a Form:
+        <select id="formSelect">
+          <option value="n400_conv.pdf" selected>N-400</option>
+		  <option value="ar11_conv.pdf">AR-11</option>
+        </select>
+      </label>
+      
+	  
+	  
+		<div class="collapsible-section">
+		  <div class="collapsible-header">
+			<h3>Eligibility Information</h3>
+			<button class="collapsible-toggle">Collapse</button>
+		  </div>
+		  <div class="collapsible-content">
+			<label><input type="radio" name="reason" value="A"> A. General Provision</label>
+			<label><input type="radio" name="reason" value="B"> B. Spouse of U.S. Citizen</label>
+			<label><input type="radio" name="reason" value="C"> C. VAWA</label>
+			<label><input type="radio" name="reason" value="D"> D. Spouse of U.S. Citizen Working Abroad</label>
+			<div id="dDetails" style="display:none; padding-left: 1em;">
+			  <label>Field Office Location: <input type="text" id="reasonDLocation" /></label>
+			</div>
+			<label><input type="radio" name="reason" value="E"> E. Military Service During Hostilities</label>
+			<label><input type="radio" name="reason" value="F"> F. 1+ Year of Honorable Military Service</label>
+			<label><input type="radio" name="reason" value="G"> G. Other Reason</label>
+			<div id="gDetails" style="display:none; padding-left: 1em;">
+			  <label>Please specify: <input type="text" id="reasonGText" /></label>
+			</div>
+		  </div>
+		</div>
+
+		
+<div class="collapsible-section">
+  <div class="collapsible-header">
+    <h3>Information About You</h3>
+    <button class="collapsible-toggle">Collapse</button>
+  </div>
+  <div class="collapsible-content">
+    <fieldset>
+      <legend>Name</legend>
+      <label>First Name: <input type="text" id="firstName" /></label>
+      <label>Middle Name: <input type="text" id="middleName" /></label>
+      <label>Last Name: <input type="text" id="lastName" /></label>
+    </fieldset>
+
+    <fieldset id="legalNameChangeFieldset">
+      <legend>Do you want to legally change your name?</legend>
+      <label>
+        <input type="radio" name="legalNameChange" value="no" checked>
+        No
+      </label>
+      <label>
+        <input type="radio" name="legalNameChange" value="yes">
+        Yes
+      </label>
+    </fieldset>
+
+    <div id="newLegalNameFields" style="display: none; margin-top: 1rem;">
+      <fieldset>
+        <legend>New Legal Name</legend>
+        <label>New First Name: <input type="text" id="newFirstName" /></label>
+        <label>New Middle Name: <input type="text" id="newMiddleName" /></label>
+        <label>New Last Name: <input type="text" id="newLastName" /></label>
+      </fieldset>
+    </div>
+
+    <fieldset>
+      <legend>Date of Birth</legend>
+      <label for="dob">Date of Birth: <input type="date" id="dob" /> </label>
+    </fieldset>
+
+    <fieldset>
+      <label for="aNumber">A-Number:</label>
+      <input type="text" id="aNumber" maxlength="11" placeholder="123-456-789">
+      <label for="uscisAccount">USCIS Online Account Number:</label>
+      <input type="text" id="uscisAccount" maxlength="12" placeholder="123456789012" />
+	  <label for="sex"> Sex:</label>
+	  <label><input type="radio" name="sex" value="male"> Male</label>
+      <label><input type="radio" name="sex" value="female"> Female</label>
+    </fieldset>
+
+    <fieldset>
+      <label for="permanentResidentDate">If you are a lawful permanent resident, give the date you became a permanent resident:</label>
+      <input type="date" id="permanentResidentDate" />
+    </fieldset>
+
+    <fieldset>
+      <label for="birthCountry">Country of Birth:</label>
+      <input type="text" id="birthCountry" />
+
+      <label for="citizenshipCountry">Country of Citizenship/Nationality:</label>
+      <input type="text" id="citizenshipCountry" />
+    </fieldset>
+
+    <fieldset>
+      <legend>Parental and Disability Information</legend>
+
+      <p>10. Was your mother or father a U.S. citizen before your 18th birthday?</p>
+      <label><input type="radio" name="q_10parent" value="yes"> Yes</label>
+      <label><input type="radio" name="q_10parent" value="no"> No</label>
+
+      <p>11. Do you have a physical or developmental disability or mental impairment that prevents you from demonstrating your knowledge and understanding of the English language or civics requirements for naturalization?</p>
+      <label><input type="radio" name="q_11phys" value="yes"> Yes</label>
+      <label><input type="radio" name="q_11phys" value="no"> No</label>
+	  
+    </fieldset>
+	
+	
+    <fieldset>
+	  <p>12a. Do you want the Social Security Administration (SSA) to issue you an original or replacement Social Security card and update your immigration status with the SSA if and when you are naturalized? </p>
+      <label><input type="radio" name="q12_newcard" value="yes"> Yes</label>
+      <label><input type="radio" name="q12_newcard" value="no"> No</label>
+    </fieldset>
+	
+
+	
+
+	<div id="ssaNewCardSection">
+	<p>12c. Do you consent to the disclosure of your information from this application and USCIS systems 
+       the SSA to assign you a SSN, issue you a new Social Security Card, and update your SSA immigration status?	</p>
+      <label><input type="radio" name="q12_consent" value="yes"> Yes</label>
+      <label><input type="radio" name="q12_consent" value="no"> No</label>
+	</div>
+	
+    <fieldset>
+      <legend>SSN</legend>
+      <input type="tel" id="ssn" maxlength="11" placeholder="123-45-6789"/>
+    </fieldset>
+  </div>
+</div>
+
+
+<div class="collapsible-section">
+  <div class="collapsible-header">
+    <h3>Biographic Information</h3>
+    <button class="collapsible-toggle">Collapse</button>
+  </div>
+  <div class="collapsible-content">
+    <fieldset>
+
+      <p>Ethnicity:</p>
+      <label><input type="radio" name="ethnicity" value="hispanic"> Hispanic or Latino</label>
+      <label><input type="radio" name="ethnicity" value="not_hispanic"> Not Hispanic or Latino</label>
+
+      <p>Race (check all that apply):</p>
+      <label><input type="checkbox" name="race" value="american_indian"> American Indian or Alaska Native</label>
+      <label><input type="checkbox" name="race" value="asian"> Asian</label>
+      <label><input type="checkbox" name="race" value="black"> Black or African American</label>
+      <label><input type="checkbox" name="race" value="native_hawaiian"> Native Hawaiian or Other Pacific Islander</label>
+      <label><input type="checkbox" name="race" value="white"> White</label>
+
+      <p>Height:</p>
+      <label>Feet: <input type="number" id="heightFeet" min="0" max="8"></label>
+      <label>Inches: <input type="number" id="heightInches" min="0" max="11"></label>
+
+      <p>Weight (in pounds):</p>
+      <label><input type="number" id="weight" min="1" max="999"></label>
+
+      <p>Eye Color:</p>
+      <label><input type="radio" name="eyeColor" value="black"> Black</label>
+      <label><input type="radio" name="eyeColor" value="blue"> Blue</label>
+      <label><input type="radio" name="eyeColor" value="brown"> Brown</label>
+      <label><input type="radio" name="eyeColor" value="gray"> Gray</label>
+      <label><input type="radio" name="eyeColor" value="green"> Green</label>
+      <label><input type="radio" name="eyeColor" value="hazel"> Hazel</label>
+      <label><input type="radio" name="eyeColor" value="maroon"> Maroon</label>
+      <label><input type="radio" name="eyeColor" value="pink"> Pink</label>
+      <label><input type="radio" name="eyeColor" value="other"> Other</label>
+
+      <p>Hair Color:</p>
+      <label><input type="radio" name="hairColor" value="bald"> Bald</label>
+      <label><input type="radio" name="hairColor" value="black"> Black</label>
+      <label><input type="radio" name="hairColor" value="blond"> Blond</label>
+      <label><input type="radio" name="hairColor" value="brown"> Brown</label>
+      <label><input type="radio" name="hairColor" value="gray"> Gray</label>
+      <label><input type="radio" name="hairColor" value="red"> Red</label>
+      <label><input type="radio" name="hairColor" value="sandy"> Sandy</label>
+      <label><input type="radio" name="hairColor" value="white"> White</label>
+      <label><input type="radio" name="hairColor" value="other"> Other</label>
+    </fieldset>
+  </div>
+</div>
+
+	
+
+		<span id="aNumberError" class="error-message"></span>
+	<div class="collapsible-section">
+  <div class="collapsible-header">
+    <h3>Residence Information</h3>
+    <button class="collapsible-toggle">Collapse</button>
+  </div>
+  <div class="collapsible-content">
+
+    <!-- Current Mailing Address -->
+    <fieldset>
+      <legend>Current Physical Address</legend>
+      <label>Street Number and Name: <input type="text" id="mailAddress" /></label>
+      <label>City: <input type="text" id="mailCity" /></label>
+      <label>Country:
+        <select id="mailCountry">
+          <option value="AF">Afghanistan (AF)</option>
+          <option value="AL">Albania (AL)</option>
+          <option value="DZ">Algeria (DZ)</option>
+          <option value="AS">American Samoa (AS)</option>
+          <option value="AD">Andorra (AD)</option>
+          <option value="AO">Angola (AO)</option>
+          <option value="AI">Anguilla (AI)</option>
+          <option value="AQ">Antarctica (AQ)</option>
+          <option value="AG">Antigua and Barbuda (AG)</option>
+          <option value="AR">Argentina (AR)</option>
+          <option value="AM">Armenia (AM)</option>
+          <option value="AW">Aruba (AW)</option>
+          <option value="AU">Australia (AU)</option>
+          <option value="AT">Austria (AT)</option>
+          <option value="AZ">Azerbaijan (AZ)</option>
+          <option value="BS">Bahamas (BS)</option>
+          <option value="BH">Bahrain (BH)</option>
+          <option value="BD">Bangladesh (BD)</option>
+          <option value="BB">Barbados (BB)</option>
+          <option value="BY">Belarus (BY)</option>
+          <option value="BE">Belgium (BE)</option>
+          <option value="BZ">Belize (BZ)</option>
+          <option value="BJ">Benin (BJ)</option>
+          <option value="BM">Bermuda (BM)</option>
+          <option value="BT">Bhutan (BT)</option>
+          <option value="BO">Bolivia (BO)</option>
+          <option value="BQ">Bonaire, Sint Eustatius and Saba (BQ)</option>
+          <option value="BA">Bosnia and Herzegovina (BA)</option>
+          <option value="BW">Botswana (BW)</option>
+          <option value="BR">Brazil (BR)</option>
+          <option value="CA">Canada (CA)</option>
+          <option value="CN">China (CN)</option>
+          <option value="CO">Colombia (CO)</option>
+          <option value="DE">Germany (DE)</option>
+          <option value="FR">France (FR)</option>
+          <option value="IN">India (IN)</option>
+          <option value="IT">Italy (IT)</option>
+          <option value="JP">Japan (JP)</option>
+          <option value="MX">Mexico (MX)</option>
+          <option value="NG">Nigeria (NG)</option>
+          <option value="RU">Russian Federation (RU)</option>
+          <option value="SA">Saudi Arabia (SA)</option>
+          <option value="ZA">South Africa (ZA)</option>
+          <option value="KR">Korea (KR)</option>
+          <option value="ES">Spain (ES)</option>
+          <option value="SE">Sweden (SE)</option>
+          <option value="CH">Switzerland (CH)</option>
+          <option value="TR">Turkey (TR)</option>
+          <option value="GB">United Kingdom (GB)</option>
+          <option value="US" selected>United States of America (US)</option>
+          <option value="ZW">Zimbabwe (ZW)</option>
+          <option value="AX">Åland Islands (AX)</option>
+        </select>
+      </label>
+      <label id="stateLabel">State:
+        <span id="mailStateContainer"></span>
+      </label>
+      <label id="zipLabel"></label>
+      <span id="zipContainer"></span>
+    </fieldset>
+	
+	
+	    <!-- Previous Physical Address (AR-11 only) -->
+    <fieldset id="previousPhysicalFieldset">
+      <legend>Previous Physical Address</legend>
+      <label>Street: <input type="text" id="prevStreet" /></label>
+      <label>City:   <input type="text" id="prevCity" /></label>
+    
+      </label>
+      <label>State:
+        <span id="prevStateContainer"></span>
+      </label>
+      <label>ZIP Code: <input type="text" id="prevZip" /></label>
+    </fieldset>
+
+
+    <!-- Physical Address Confirmation -->
+    <fieldset>
+      <legend>Physical Address Confirmation</legend>
+      <p>Is your current physical address also your current mailing address?</p>
+      <label><input type="radio" name="sameAddress" value="yes"> Yes</label>
+      <label><input type="radio" name="sameAddress" value="no"> No</label>
+    </fieldset>
+
+    <!-- Different Mailing Address (shown only if No) -->
+    <fieldset id="differentMailingAddress" style="display: none;">
+      <legend>Different Mailing Address</legend>
+      <label>Street: <input type="text" id="newMailAddress" /></label>
+      <label>City: <input type="text" id="newMailCity" /></label>
+      <label>Country:
+        <select id="newMailCountry">
+			<option value="AF">Afghanistan (AF)</option>
+			<option value="AL">Albania (AL)</option>
+			<option value="DZ">Algeria (DZ)</option>
+			<option value="AS">American Samoa (AS)</option>
+			<option value="AD">Andorra (AD)</option>
+			<option value="AO">Angola (AO)</option>
+			<option value="AI">Anguilla (AI)</option>
+			<option value="AQ">Antarctica (AQ)</option>
+			<option value="AG">Antigua and Barbuda (AG)</option>
+			<option value="AR">Argentina (AR)</option>
+			<option value="AM">Armenia (AM)</option>
+			<option value="AW">Aruba (AW)</option>
+			<option value="AU">Australia (AU)</option>
+			<option value="AT">Austria (AT)</option>
+			<option value="AZ">Azerbaijan (AZ)</option>
+			<option value="BS">Bahamas (BS)</option>
+			<option value="BH">Bahrain (BH)</option>
+			<option value="BD">Bangladesh (BD)</option>
+			<option value="BB">Barbados (BB)</option>
+			<option value="BY">Belarus (BY)</option>
+			<option value="BE">Belgium (BE)</option>
+			<option value="BZ">Belize (BZ)</option>
+			<option value="BJ">Benin (BJ)</option>
+			<option value="BM">Bermuda (BM)</option>
+			<option value="BT">Bhutan (BT)</option>
+			<option value="BO">Bolivia (BO)</option>
+			<option value="BQ">Bonaire, Sint Eustatius and Saba (BQ)</option>
+			<option value="BA">Bosnia and Herzegovina (BA)</option>
+			<option value="BW">Botswana (BW)</option>
+			<option value="BR">Brazil (BR)</option>
+			<option value="CA">Canada (CA)</option>
+			<option value="CN">China (CN)</option>
+			<option value="CO">Colombia (CO)</option>
+			<option value="DE">Germany (DE)</option>
+			<option value="FR">France (FR)</option>
+			<option value="IN">India (IN)</option>
+			<option value="IT">Italy (IT)</option>
+			<option value="JP">Japan (JP)</option>
+			<option value="MX">Mexico (MX)</option>
+			<option value="NG">Nigeria (NG)</option>
+			<option value="RU">Russian Federation (RU)</option>
+			<option value="SA">Saudi Arabia (SA)</option>
+			<option value="ZA">South Africa (ZA)</option>
+			<option value="KR">Korea (KR)</option>
+			<option value="ES">Spain (ES)</option>
+			<option value="SE">Sweden (SE)</option>
+			<option value="CH">Switzerland (CH)</option>
+			<option value="TR">Turkey (TR)</option>
+			<option value="GB">United Kingdom (GB)</option>
+			<option value="US" selected>United States of America (US)</option>
+			<option value="ZW">Zimbabwe (ZW)</option>
+			<option value="AX">Åland Islands (AX)</option>
+		  </select>
+			  </label>
+			  <label id="newStateLabel">State/Province:
+				<span id="newMailStateContainer"></span>
+			  </label>
+			  <label>ZIP Code: <input type="text" id="newMailZip" /></label>
+			</fieldset>
+
+		  </div>
+		</div>
+
+      <div class="collapsible-section">
+  <div class="collapsible-header">
+    <h3>Contact Info</h3>
+    <button class="collapsible-toggle">Collapse</button>
+  </div>
+  <div class="collapsible-content">
+    <fieldset>
+      <legend>Contact Info</legend>
+      <label>Phone: <input type="tel" id="phone" maxlength="12" placeholder="555-123-4567"/></label>
+      <label>Email: <input type="email" id="email" /></label>
+    </fieldset>
+  </div>
+</div>
+
+
+<div class="collapsible-section">
+  <div class="collapsible-header">
+    <h3>Marital History</h3>
+    <button class="collapsible-toggle">Collapse</button>
+  </div>
+  <div class="collapsible-content">
+    <fieldset>
+      <legend>1. What is your current marital status?</legend>
+      <label><input type="radio" name="maritalStatus" value="single" onchange="toggleMaritalQuestions()"> Single, Never Married</label>
+      <label><input type="radio" name="maritalStatus" value="married" onchange="toggleMaritalQuestions()"> Married</label>
+      <label><input type="radio" name="maritalStatus" value="divorced" onchange="toggleMaritalQuestions()"> Divorced</label>
+      <label><input type="radio" name="maritalStatus" value="widowed" onchange="toggleMaritalQuestions()"> Widowed</label>
+      <label><input type="radio" name="maritalStatus" value="separated" onchange="toggleMaritalQuestions()"> Separated</label>
+      <label><input type="radio" name="maritalStatus" value="annulled" onchange="toggleMaritalQuestions()"> Marriage Annulled</label>
+    </fieldset>
+
+    <div id="marriedInfo">
+      
+      <fieldset>
+        <legend>2. If you are currently married, is your spouse a current member of the U.S. armed forces?</legend>
+        <label><input type="radio" name="spouseArmedForces" value="yes"> Yes</label>
+        <label><input type="radio" name="spouseArmedForces" value="no"> No</label>
+      </fieldset>
+      
+      <fieldset>
+        <legend>3. How many times have you been married? (See the Specific Instructions by Item Number section of the Instructions for more information about which marriages to include.)</legend>
+        <input type="number" id="marriageCount" min="0" max="99">
+      </fieldset>
+      
+      <div class="question">
+        <p>4.a. Current Spouse's Legal Name</p>
+        <fieldset>
+          <label>Last Name: <input type="text" name="spouseLastName" placeholder="Last Name"></label>
+          <label>First Name: <input type="text" name="spouseFirstName" placeholder="First Name"></label>
+          <label>Middle Name: <input type="text" name="spouseMiddleName" placeholder="Middle Name (if any)"></label>
+        </fieldset>
+      </div>
+      
+      <div class="question">
+        <p>4.b. Current Spouse's Date of Birth</p>
+        <input type="date" name="spouseDOB">
+      </div>
+      
+      <div class="question">
+        <p>4.c. Date You Entered into Marriage</p>
+        <input type="date" name="marriageDate">
+      </div>
+      
+      <div class="question">
+        <p>4.d. Is your current spouse's address the same as yours?</p>
+        <label><input type="radio" name="spouseSameAddress" value="yes"> Yes</label>
+        <label><input type="radio" name="spouseSameAddress" value="no"> No</label>
+      </div>
+      
+      <div class="question">
+        <p>5.a. When did your current spouse become a U.S. citizen?</p>
+        <label><input type="radio" name="spouseCitizenByBirth" value="birth"> By Birth in the United States</label><br>
+        <label><input type="radio" name="spouseCitizenByBirth" value="other"> Other</label>
+      </div>
+      
+      <div class="question" id="spouse-citizen-date-container">
+        <p>5.b. Date Your Spouse Became a U.S. Citizen</p>
+        <input type="date" name="spouseCitizenDate">
+      </div>
+      
+      <div class="question">
+        <p>6. Current Spouse's A-Number</p>
+        <input type="text" name="spouseANumber">
+      </div>
+      
+      <div class="question">
+        <p>7. How many times has your current spouse been married?</p>
+        <input type="number" name="spouseMarriages" min="0">
+      </div>
+      
+      <div class="question">
+        <p>8. Current Spouse's Current Employer or Company<br>
+          <small>(Only if filing under Part 1. Item 1.d.)</small>
+        </p>
+        <input type="text" name="spouseEmployer">
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<div class="collapsible-section">
+  <div class="collapsible-header">
+    <h3>Information About Your Children</h3>
+    <button class="collapsible-toggle">Collapse</button>
+  </div>
+  <div class="collapsible-content">
+    <fieldset>
+      <legend>Children Information</legend>
+      <label>Total Number of Children Under 18: <input type="number" id="childrenCount" min="0" max="99"></label>
+      
+      <p>For each child, provide the following information:</p>
+      
+      <div class="child-info">
+        <h4>Child 1</h4>
+        <label>Name (First Name and Family Name): <input type="text" id="child1Name"></label>
+        <label>Date of Birth: <input type="date" id="child1DOB"></label>
+        <label>Residence:
+          <select id="child1Residence">
+            <option value="">Select...</option>
+            <option value="Resides with me">Resides with me</option>
+            <option value="Does not reside with me">Does not reside with me</option>
+            <option value="Unknown/missing">Unknown/missing</option>
+          </select>
+        </label>
+        <label>Relationship:
+          <select id="child1Relationship">
+            <option value="">Select...</option>
+            <option value="Biological child">Biological child</option>
+            <option value="Stepchild">Stepchild</option>
+            <option value="Legally adopted child">Legally adopted child</option>
+          </select>
+        </label>
+        <div>
+          <p>Are you providing support for your son or daughter?</p>
+          <label><input type="radio" name="child1Support" value="yes"> Yes</label>
+          <label><input type="radio" name="child1Support" value="no"> No</label>
+        </div>
+      </div>
+
+      <div class="child-info">
+        <h4>Child 2</h4>
+        <label>Name (First Name and Family Name): <input type="text" id="child2Name"></label>
+        <label>Date of Birth: <input type="date" id="child2DOB"></label>
+        <label>Residence:
+          <select id="child2Residence">
+            <option value="">Select...</option>
+            <option value="Resides with me">Resides with me</option>
+            <option value="Does not reside with me">Does not reside with me</option>
+            <option value="Unknown/missing">Unknown/missing</option>
+          </select>
+        </label>
+        <label>Relationship:
+          <select id="child2Relationship">
+            <option value="">Select...</option>
+            <option value="Biological child">Biological child</option>
+            <option value="Stepchild">Stepchild</option>
+            <option value="Legally adopted child">Legally adopted child</option>
+          </select>
+        </label>
+        <div>
+          <p>Are you providing support for your son or daughter?</p>
+          <label><input type="radio" name="child2Support" value="yes"> Yes</label>
+          <label><input type="radio" name="child2Support" value="no"> No</label>
+        </div>
+      </div>
+
+      <div class="child-info">
+        <h4>Child 3</h4>
+        <label>Name (First Name and Family Name): <input type="text" id="child3Name"></label>
+        <label>Date of Birth: <input type="date" id="child3DOB"></label>
+        <label>Residence:
+          <select id="child3Residence">
+            <option value="">Select...</option>
+            <option value="Resides with me">Resides with me</option>
+            <option value="Does not reside with me">Does not reside with me</option>
+            <option value="Unknown/missing">Unknown/missing</option>
+          </select>
+        </label>
+        <label>Relationship:
+          <select id="child3Relationship">
+            <option value="">Select...</option>
+            <option value="Biological child">Biological child</option>
+            <option value="Stepchild">Stepchild</option>
+            <option value="Legally adopted child">Legally adopted child</option>
+          </select>
+        </label>
+        <div>
+          <p>Are you providing support for your son or daughter?</p>
+          <label><input type="radio" name="child3Support" value="yes"> Yes</label>
+          <label><input type="radio" name="child3Support" value="no"> No</label>
+        </div>
+      </div>
+      
+    </fieldset>
+  </div>
+</div>
+
+
+
+<div class="collapsible-section">
+  <div class="collapsible-header">
+    <h3>Employment/Education Information</h3>
+    <button class="collapsible-toggle">Collapse</button>
+  </div>
+  <div class="collapsible-content">
+    <fieldset>
+      <legend>Employment and School History</legend>
+      <p>List where you have worked or attended school full time or part time during the last 5 years if you are filing based on the general provision. Provide information for the complete time period for all employment, including foreign government employment. Begin by providing information about your most recent or current employment, studies, or unemployment.</p>
+      <p>If you worked for yourself, enter "self-employed". If you were unemployed, enter "unemployed". If you are retired, enter "retired".</p>
+      
+      <div class="employment-entry">
+        <h4>Most Recent Employment/Education</h4>
+        <div class="employment-grid">
+          <div class="grid-item">
+            <label for="employment1Name">Employer or School Name:</label>
+            <input type="text" id="employment1Name" placeholder="Employer/School">
+          </div>
+          <div class="grid-item">
+            <label for="employment1CityTown">City/Town:</label>
+            <input type="text" id="employment1CityTown">
+          </div>
+          <div class="grid-item">
+            <label for="employment1Country">Country:</label>
+            <select id="employment1Country">
+              <option value="AF">Afghanistan (AF)</option>
+			  <option value="AL">Albania (AL)</option>
+			  <option value="DZ">Algeria (DZ)</option>
+			  <option value="AS">American Samoa (AS)</option>
+			  <option value="AD">Andorra (AD)</option>
+			  <option value="AO">Angola (AO)</option>
+			  <option value="AI">Anguilla (AI)</option>
+			  <option value="AQ">Antarctica (AQ)</option>
+			  <option value="AG">Antigua and Barbuda (AG)</option>
+			  <option value="AR">Argentina (AR)</option>
+			  <option value="AM">Armenia (AM)</option>
+			  <option value="AW">Aruba (AW)</option>
+			  <option value="AU">Australia (AU)</option>
+			  <option value="AT">Austria (AT)</option>
+			  <option value="AZ">Azerbaijan (AZ)</option>
+			  <option value="BS">Bahamas (BS)</option>
+			  <option value="BH">Bahrain (BH)</option>
+			  <option value="BD">Bangladesh (BD)</option>
+			  <option value="BB">Barbados (BB)</option>
+			  <option value="BY">Belarus (BY)</option>
+			  <option value="BE">Belgium (BE)</option>
+			  <option value="BZ">Belize (BZ)</option>
+			  <option value="BJ">Benin (BJ)</option>
+			  <option value="BM">Bermuda (BM)</option>
+			  <option value="BT">Bhutan (BT)</option>
+			  <option value="BO">Bolivia (BO)</option>
+			  <option value="BQ">Bonaire, Sint Eustatius and Saba (BQ)</option>
+			  <option value="BA">Bosnia and Herzegovina (BA)</option>
+			  <option value="BW">Botswana (BW)</option>
+			  <option value="BR">Brazil (BR)</option>
+			  <option value="CA">Canada (CA)</option>
+			  <option value="CN">China (CN)</option>
+			  <option value="CO">Colombia (CO)</option>
+			  <option value="DE">Germany (DE)</option>
+			  <option value="FR">France (FR)</option>
+			  <option value="IN">India (IN)</option>
+			  <option value="IT">Italy (IT)</option>
+			  <option value="JP">Japan (JP)</option>
+			  <option value="MX">Mexico (MX)</option>
+			  <option value="NG">Nigeria (NG)</option>
+			  <option value="RU">Russian Federation (RU)</option>
+			  <option value="SA">Saudi Arabia (SA)</option>
+			  <option value="ZA">South Africa (ZA)</option>
+			  <option value="KR">Korea (KR)</option>
+			  <option value="ES">Spain (ES)</option>
+			  <option value="SE">Sweden (SE)</option>
+			  <option value="CH">Switzerland (CH)</option>
+			  <option value="TR">Turkey (TR)</option>
+			  <option value="GB">United Kingdom (GB)</option>
+			  <option value="US" selected>United States of America (US)</option>
+			  <option value="ZW">Zimbabwe (ZW)</option>
+			  <option value="AX">Åland Islands (AX)</option>
+              <!-- Add more countries as needed -->
+            </select>
+          </div>
+          <div class="grid-item" id="employment1StateContainer">
+            <label id="employment1StateLabel">State/Province:</label>
+            <div id="employment1StateProvinceContainer"></div>
+          </div>
+          <div class="grid-item">
+            <label for="employment1ZipPostal">ZIP Code/Postal Code:</label>
+            <input type="text" id="employment1ZipPostal">
+          </div>
+          <div class="grid-item">
+		  <label>Employment/School Dates (mm/dd/yyyy):</label>
+		  <div class="date-range">
+			<div>
+			  <label for="employment1DateFrom">From:</label>
+			  <input type="date" id="employment1DateFrom">
+			</div>
+		  </div>
+		</div>
+		
+		<div class="grid-item">
+            <label for="employment1Occupation">Occupation or Field of Study:</label>
+            <input type="text" id="employment1Occupation">
+          </div>
+
+      <div class="employment-entry">
+        <h4>Previous Employment/Education 1</h4>
+        <div class="employment-grid">
+          <div class="grid-item">
+            <label for="employment2Name">Employer or School Name:</label>
+            <input type="text" id="employment2Name" placeholder="Employer/School">
+          </div>
+          <div class="grid-item">
+            <label for="employment2CityTown">City/Town:</label>
+            <input type="text" id="employment2CityTown">
+          </div>
+          <div class="grid-item">
+            <label for="employment2Country">Country:</label>
+            <select id="employment2Country">
+              <option value="AF">Afghanistan (AF)</option>
+			  <option value="AL">Albania (AL)</option>
+			  <option value="DZ">Algeria (DZ)</option>
+			  <option value="AS">American Samoa (AS)</option>
+			  <option value="AD">Andorra (AD)</option>
+			  <option value="AO">Angola (AO)</option>
+			  <option value="AI">Anguilla (AI)</option>
+			  <option value="AQ">Antarctica (AQ)</option>
+			  <option value="AG">Antigua and Barbuda (AG)</option>
+			  <option value="AR">Argentina (AR)</option>
+			  <option value="AM">Armenia (AM)</option>
+			  <option value="AW">Aruba (AW)</option>
+			  <option value="AU">Australia (AU)</option>
+			  <option value="AT">Austria (AT)</option>
+			  <option value="AZ">Azerbaijan (AZ)</option>
+			  <option value="BS">Bahamas (BS)</option>
+			  <option value="BH">Bahrain (BH)</option>
+			  <option value="BD">Bangladesh (BD)</option>
+			  <option value="BB">Barbados (BB)</option>
+			  <option value="BY">Belarus (BY)</option>
+			  <option value="BE">Belgium (BE)</option>
+			  <option value="BZ">Belize (BZ)</option>
+			  <option value="BJ">Benin (BJ)</option>
+			  <option value="BM">Bermuda (BM)</option>
+			  <option value="BT">Bhutan (BT)</option>
+			  <option value="BO">Bolivia (BO)</option>
+			  <option value="BQ">Bonaire, Sint Eustatius and Saba (BQ)</option>
+			  <option value="BA">Bosnia and Herzegovina (BA)</option>
+			  <option value="BW">Botswana (BW)</option>
+			  <option value="BR">Brazil (BR)</option>
+			  <option value="CA">Canada (CA)</option>
+			  <option value="CN">China (CN)</option>
+			  <option value="CO">Colombia (CO)</option>
+			  <option value="DE">Germany (DE)</option>
+			  <option value="FR">France (FR)</option>
+			  <option value="IN">India (IN)</option>
+			  <option value="IT">Italy (IT)</option>
+			  <option value="JP">Japan (JP)</option>
+			  <option value="MX">Mexico (MX)</option>
+			  <option value="NG">Nigeria (NG)</option>
+			  <option value="RU">Russian Federation (RU)</option>
+			  <option value="SA">Saudi Arabia (SA)</option>
+			  <option value="ZA">South Africa (ZA)</option>
+			  <option value="KR">Korea (KR)</option>
+			  <option value="ES">Spain (ES)</option>
+			  <option value="SE">Sweden (SE)</option>
+			  <option value="CH">Switzerland (CH)</option>
+			  <option value="TR">Turkey (TR)</option>
+			  <option value="GB">United Kingdom (GB)</option>
+			  <option value="US" selected>United States of America (US)</option>
+			  <option value="ZW">Zimbabwe (ZW)</option>
+			  <option value="AX">Åland Islands (AX)</option>
+            </select>
+          </div>
+          <div class="grid-item" id="employment2StateContainer">
+            <label id="employment2StateLabel">State/Province:</label>
+            <div id="employment2StateProvinceContainer"></div>
+          </div>
+          <div class="grid-item">
+            <label for="employment2ZipPostal">ZIP Code/Postal Code:</label>
+            <input type="text" id="employment2ZipPostal">
+          </div>
+          <div class="grid-item">
+            <label>Employment/School Dates (mm/dd/yyyy):</label>
+            <div class="date-range">
+              <div>
+                <label for="employment2DateFrom">From:</label>
+                <input type="date" id="employment2DateFrom">
+              </div>
+              <div>
+                <label for="employment2DateTo">To:</label>
+                <input type="date" id="employment2DateTo">
+              </div>
+            </div>
+          </div>
+          <div class="grid-item">
+            <label for="employment2Occupation">Occupation or Field of Study:</label>
+            <input type="text" id="employment2Occupation">
+          </div>
+        </div>
+      </div>
+
+      <div class="employment-entry">
+        <h4>Previous Employment/Education 2</h4>
+        <div class="employment-grid">
+          <div class="grid-item">
+            <label for="employment3Name">Employer or School Name:</label>
+            <input type="text" id="employment3Name" placeholder="Employer/School">
+          </div>
+          <div class="grid-item">
+            <label for="employment3CityTown">City/Town:</label>
+            <input type="text" id="employment3CityTown">
+          </div>
+          <div class="grid-item">
+            <label for="employment3Country">Country:</label>
+            <select id="employment3Country">
+              <option value="AF">Afghanistan (AF)</option>
+			  <option value="AL">Albania (AL)</option>
+			  <option value="DZ">Algeria (DZ)</option>
+			  <option value="AS">American Samoa (AS)</option>
+			  <option value="AD">Andorra (AD)</option>
+			  <option value="AO">Angola (AO)</option>
+			  <option value="AI">Anguilla (AI)</option>
+			  <option value="AQ">Antarctica (AQ)</option>
+			  <option value="AG">Antigua and Barbuda (AG)</option>
+			  <option value="AR">Argentina (AR)</option>
+			  <option value="AM">Armenia (AM)</option>
+			  <option value="AW">Aruba (AW)</option>
+			  <option value="AU">Australia (AU)</option>
+			  <option value="AT">Austria (AT)</option>
+			  <option value="AZ">Azerbaijan (AZ)</option>
+			  <option value="BS">Bahamas (BS)</option>
+			  <option value="BH">Bahrain (BH)</option>
+			  <option value="BD">Bangladesh (BD)</option>
+			  <option value="BB">Barbados (BB)</option>
+			  <option value="BY">Belarus (BY)</option>
+			  <option value="BE">Belgium (BE)</option>
+			  <option value="BZ">Belize (BZ)</option>
+			  <option value="BJ">Benin (BJ)</option>
+			  <option value="BM">Bermuda (BM)</option>
+			  <option value="BT">Bhutan (BT)</option>
+			  <option value="BO">Bolivia (BO)</option>
+			  <option value="BQ">Bonaire, Sint Eustatius and Saba (BQ)</option>
+			  <option value="BA">Bosnia and Herzegovina (BA)</option>
+			  <option value="BW">Botswana (BW)</option>
+			  <option value="BR">Brazil (BR)</option>
+			  <option value="CA">Canada (CA)</option>
+			  <option value="CN">China (CN)</option>
+			  <option value="CO">Colombia (CO)</option>
+			  <option value="DE">Germany (DE)</option>
+			  <option value="FR">France (FR)</option>
+			  <option value="IN">India (IN)</option>
+			  <option value="IT">Italy (IT)</option>
+			  <option value="JP">Japan (JP)</option>
+			  <option value="MX">Mexico (MX)</option>
+			  <option value="NG">Nigeria (NG)</option>
+			  <option value="RU">Russian Federation (RU)</option>
+			  <option value="SA">Saudi Arabia (SA)</option>
+			  <option value="ZA">South Africa (ZA)</option>
+			  <option value="KR">Korea (KR)</option>
+			  <option value="ES">Spain (ES)</option>
+			  <option value="SE">Sweden (SE)</option>
+			  <option value="CH">Switzerland (CH)</option>
+			  <option value="TR">Turkey (TR)</option>
+			  <option value="GB">United Kingdom (GB)</option>
+			  <option value="US" selected>United States of America (US)</option>
+			  <option value="ZW">Zimbabwe (ZW)</option>
+			  <option value="AX">Åland Islands (AX)</option>
+            </select>
+          </div>
+          <div class="grid-item" id="employment3StateContainer">
+            <label id="employment3StateLabel">State/Province:</label>
+            <div id="employment3StateProvinceContainer"></div>
+          </div>
+          <div class="grid-item">
+            <label for="employment3ZipPostal">ZIP Code/Postal Code:</label>
+            <input type="text" id="employment3ZipPostal">
+          </div>
+          <div class="grid-item">
+            <label>Employment/School Dates (mm/dd/yyyy):</label>
+            <div class="date-range">
+              <div>
+                <label for="employment3DateFrom">From:</label>
+                <input type="date" id="employment3DateFrom">
+              </div>
+              <div>
+                <label for="employment3DateTo">To:</label>
+                <input type="date" id="employment3DateTo">
+              </div>
+            </div>
+          </div>
+          <div class="grid-item">
+            <label for="employment3Occupation">Occupation or Field of Study:</label>
+            <input type="text" id="employment3Occupation">
+          </div>
+        </div>
+      </div>
+      
+    </fieldset>
+  </div>
+</div>
+
+
+
+<div class="collapsible-section">
+  <div class="collapsible-header">
+    <h3>Time Outside the United States</h3>
+    <button class="collapsible-toggle">Collapse</button>
+  </div>
+  <div class="collapsible-content">
+    <fieldset>
+      <legend>Travel Information</legend>
+      <p>List below all trips of 24 hours or more that you have taken outside the United States during the last 5 years. Start with your most recent trip and work backwards. Do not include day trips.</p>
+      
+      <div class="travel-entry">
+	  <div class="travel-header">
+        <h4>Trip 1 (Most Recent)</h4>
+		<button type="button" class="removeTripBtn">Remove</button>
+		</div>
+        <div class="travel-grid">
+          <div class="grid-item">
+            <label for="trip1DateLeft">Date You Left the United States:</label>
+            <input type="date" id="trip1DateLeft">
+          </div>
+          <div class="grid-item">
+            <label for="trip1DateReturned">Date You Returned to the United States:</label>
+            <input type="date" id="trip1DateReturned">
+          </div>
+          <div class="grid-item">
+            <label for="trip1Countries">Countries to Which You Traveled:</label>
+            <select id="trip1Countries">
+              <option value="">--Select Country--</option>
+              <option value="AF">Afghanistan (AF)</option>
+              <option value="AL">Albania (AL)</option>
+              <option value="DZ">Algeria (DZ)</option>
+              <option value="AS">American Samoa (AS)</option>
+              <option value="AD">Andorra (AD)</option>
+              <option value="AO">Angola (AO)</option>
+              <option value="AI">Anguilla (AI)</option>
+              <option value="AQ">Antarctica (AQ)</option>
+              <option value="AG">Antigua and Barbuda (AG)</option>
+              <option value="AR">Argentina (AR)</option>
+              <option value="AM">Armenia (AM)</option>
+              <option value="AW">Aruba (AW)</option>
+              <option value="AU">Australia (AU)</option>
+              <option value="AT">Austria (AT)</option>
+              <option value="AZ">Azerbaijan (AZ)</option>
+              <option value="BS">Bahamas (BS)</option>
+              <option value="BH">Bahrain (BH)</option>
+              <option value="BD">Bangladesh (BD)</option>
+              <option value="BB">Barbados (BB)</option>
+              <option value="BY">Belarus (BY)</option>
+              <option value="BE">Belgium (BE)</option>
+              <option value="BZ">Belize (BZ)</option>
+              <option value="BJ">Benin (BJ)</option>
+              <option value="BM">Bermuda (BM)</option>
+              <option value="BT">Bhutan (BT)</option>
+              <option value="BO">Bolivia (BO)</option>
+              <option value="BQ">Bonaire, Sint Eustatius and Saba (BQ)</option>
+              <option value="BA">Bosnia and Herzegovina (BA)</option>
+              <option value="BW">Botswana (BW)</option>
+              <option value="BR">Brazil (BR)</option>
+              <option value="CA">Canada (CA)</option>
+              <option value="CN">China (CN)</option>
+              <option value="CO">Colombia (CO)</option>
+              <option value="DE">Germany (DE)</option>
+              <option value="FR">France (FR)</option>
+              <option value="IN">India (IN)</option>
+              <option value="IT">Italy (IT)</option>
+              <option value="JP">Japan (JP)</option>
+              <option value="MX">Mexico (MX)</option>
+              <option value="NG">Nigeria (NG)</option>
+              <option value="RU">Russian Federation (RU)</option>
+              <option value="SA">Saudi Arabia (SA)</option>
+              <option value="ZA">South Africa (ZA)</option>
+              <option value="KR">Korea (KR)</option>
+              <option value="ES">Spain (ES)</option>
+              <option value="SE">Sweden (SE)</option>
+              <option value="CH">Switzerland (CH)</option>
+              <option value="TR">Turkey (TR)</option>
+              <option value="GB">United Kingdom (GB)</option>
+              <option value="US">United States of America (US)</option>
+              <option value="ZW">Zimbabwe (ZW)</option>
+              <option value="AX">Åland Islands (AX)</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      
+      <div class="travel-entry">
+	  <div class="travel-header">
+        <h4>Trip 2</h4>
+		<button type="button" class="removeTripBtn">Remove</button>
+		</div>
+        <div class="travel-grid">
+          <div class="grid-item">
+            <label for="trip2DateLeft">Date You Left the United States:</label>
+            <input type="date" id="trip2DateLeft">
+          </div>
+          <div class="grid-item">
+            <label for="trip2DateReturned">Date You Returned to the United States:</label>
+            <input type="date" id="trip2DateReturned">
+          </div>
+          <div class="grid-item">
+            <label for="trip2Countries">Countries to Which You Traveled:</label>
+            <select id="trip2Countries">
+              <option value="">--Select Country--</option>
+              <option value="AF">Afghanistan (AF)</option>
+              <option value="AL">Albania (AL)</option>
+              <option value="DZ">Algeria (DZ)</option>
+              <option value="AS">American Samoa (AS)</option>
+              <option value="AD">Andorra (AD)</option>
+              <option value="AO">Angola (AO)</option>
+              <option value="AI">Anguilla (AI)</option>
+              <option value="AQ">Antarctica (AQ)</option>
+              <option value="AG">Antigua and Barbuda (AG)</option>
+              <option value="AR">Argentina (AR)</option>
+              <option value="AM">Armenia (AM)</option>
+              <option value="AW">Aruba (AW)</option>
+              <option value="AU">Australia (AU)</option>
+              <option value="AT">Austria (AT)</option>
+              <option value="AZ">Azerbaijan (AZ)</option>
+              <option value="BS">Bahamas (BS)</option>
+              <option value="BH">Bahrain (BH)</option>
+              <option value="BD">Bangladesh (BD)</option>
+              <option value="BB">Barbados (BB)</option>
+              <option value="BY">Belarus (BY)</option>
+              <option value="BE">Belgium (BE)</option>
+              <option value="BZ">Belize (BZ)</option>
+              <option value="BJ">Benin (BJ)</option>
+              <option value="BM">Bermuda (BM)</option>
+              <option value="BT">Bhutan (BT)</option>
+              <option value="BO">Bolivia (BO)</option>
+              <option value="BQ">Bonaire, Sint Eustatius and Saba (BQ)</option>
+              <option value="BA">Bosnia and Herzegovina (BA)</option>
+              <option value="BW">Botswana (BW)</option>
+              <option value="BR">Brazil (BR)</option>
+              <option value="CA">Canada (CA)</option>
+              <option value="CN">China (CN)</option>
+              <option value="CO">Colombia (CO)</option>
+              <option value="DE">Germany (DE)</option>
+              <option value="FR">France (FR)</option>
+              <option value="IN">India (IN)</option>
+              <option value="IT">Italy (IT)</option>
+              <option value="JP">Japan (JP)</option>
+              <option value="MX">Mexico (MX)</option>
+              <option value="NG">Nigeria (NG)</option>
+              <option value="RU">Russian Federation (RU)</option>
+              <option value="SA">Saudi Arabia (SA)</option>
+              <option value="ZA">South Africa (ZA)</option>
+              <option value="KR">Korea (KR)</option>
+              <option value="ES">Spain (ES)</option>
+              <option value="SE">Sweden (SE)</option>
+              <option value="CH">Switzerland (CH)</option>
+              <option value="TR">Turkey (TR)</option>
+              <option value="GB">United Kingdom (GB)</option>
+              <option value="US">United States of America (US)</option>
+              <option value="ZW">Zimbabwe (ZW)</option>
+              <option value="AX">Åland Islands (AX)</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      
+
+      
+      <button type="button" id="addTripBtn">+ Add Another Trip</button>
+    </fieldset>
+  </div>
+</div>
+
+
+	  
+
+      
+      <!-- Collapsible Yes/No Questions for N-400 -->
+<div id="n400Questions" style="display: none;">
+    <div id="questionsHeader">
+        <h3>Additional Information</h3>
+        <button id="toggleQuestions">Collapse</button>
+    </div>
+    <div id="questionsContent">
+        <!-- List all 50 questions exactly as provided, with no default selections -->
+        <div class="question">
+            <p>1. Have you EVER claimed to be a U.S. citizen (in writing or any other way)?</p>
+            <label><input type="radio" name="q_1" value="yes"> Yes</label>
+            <label><input type="radio" name="q_1" value="no" checked> No</label>
+        </div>
+        <div class="question">
+            <p>2. Have you EVER registered to vote or voted in any Federal, state, or local election in the United States? If you lawfully voted only in a local election where aliens are eligible to vote, you may answer “No.”</p>
+            <label><input type="radio" name="q_2" value="yes"> Yes</label>
+            <label><input type="radio" name="q_2" value="no" checked> No</label>
+        </div>
+        <div class="question">
+            <p>3. Do you currently owe any overdue Federal, state, or local taxes and/or have you called yourself a “nonresident alien” on your tax return?</p>
+            <label><input type="radio" name="q_3" value="yes"> Yes</label>
+            <label><input type="radio" name="q_3" value="no" checked> No</label>
+        </div>
+        <div class="question">
+            <p>4. Since you became a lawful permanent resident, have you called yourself a “nonresident alien” on a Federal, state, or local tax return or decided not to file a tax return because you considered yourself to be a nonresident?</p>
+            <label><input type="radio" name="q_4" value="yes"> Yes</label>
+            <label><input type="radio" name="q_4" value="no" checked> No</label>
+        </div>
+        <div class="question">
+            <p>5.a. Been a member of, involved in, or in any way associated with any Communist or totalitarian party anywhere in the world?</p>
+            <label><input type="radio" name="q_5a" value="yes"> Yes</label>
+            <label><input type="radio" name="q_5a" value="no" checked> No</label>
+        </div>
+        <div class="question">
+            <p>5.b. Advocated (supported and promoted) any of the following, or been a member of, involved in, or in any way associated with any group anywhere in the world that advocated any of the following:<br></p>
+            <p>- Opposition to all organized government;<br>
+                - World Communism;<br>
+                - The establishment in the United States of a totalitarian dictatorship;<br>
+                - The overthrow by force or violence or other unconstitutional means of the Government of the United States or all forms of law;<br>
+                - The unlawful assaulting or killing of any officer or officers of the Government of the United States or of any other organized government because of their official character;<br>
+                - The unlawful damage, injury or destruction of property;<br>
+                - Sabotage</p>
+            <label><input type="radio" name="q_5b" value="yes"> Yes</label>
+            <label><input type="radio" name="q_5b" value="no" checked> No</label>
+        </div>
+        <div class="question">
+            <p>6a. Have you EVER used a weapon or explosive with intent to harm or cause property damage?</p>
+            <label><input type="radio" name="q_6a" value="yes"> Yes</label>
+            <label><input type="radio" name="q_6a" value="no" checked> No</label>
+        </div>
+        <div class="question">
+            <p>6b. Have you EVER engaged in kidnapping, assassination, hijacking, or sabotage of transportation?</p>
+            <label><input type="radio" name="q_6b" value="yes"> Yes</label>
+            <label><input type="radio" name="q_6b" value="no" checked> No</label>
+        </div>
+        <div class="question">
+            <p>6c. Have you EVER threatened, conspired, or incited others to commit any of the acts mentioned above? (6a &amp; 6b)</p>
+            <label><input type="radio" name="q_6c" value="yes"> Yes</label>
+            <label><input type="radio" name="q_6c" value="no" checked> No</label>
+        </div>
+        <div class="question">
+            <p>7a. Have you EVER ordered, incited, called for, committed, assisted, helped with, or participated in any of the following: Torture?</p>
+            <label><input type="radio" name="q_7a" value="yes"> Yes</label>
+            <label><input type="radio" name="q_7a" value="no" checked> No</label>
+        </div>
+        <div class="question">
+            <p>7b. Genocide?</p>
+            <label><input type="radio" name="q_7b" value="yes"> Yes</label>
+            <label><input type="radio" name="q_7b" value="no" checked> No</label>
+        </div>
+        <div class="question">
+            <p>7c. Killing or trying to kill any person?</p>
+            <label><input type="radio" name="q_7c" value="yes"> Yes</label>
+            <label><input type="radio" name="q_7c" value="no" checked> No</label>
+        </div>
+        <div class="question">
+            <p>7d. Intentionally and severely injuring or trying to injure any person?</p>
+            <label><input type="radio" name="q_7d" value="yes"> Yes</label>
+            <label><input type="radio" name="q_7d" value="no" checked> No</label>
+        </div>
+        <div class="question">
+            <p>7e. Any kind of sexual contact or activity with any person who did not consent (did not agree) or was unable to consent (could not agree), or was being forced or threatened by you or by someone else?</p>
+            <label><input type="radio" name="q_7e" value="yes"> Yes</label>
+            <label><input type="radio" name="q_7e" value="no" checked> No</label>
+        </div>
+        <div class="question">
+            <p>7f. Not letting someone practice his or her religion?</p>
+            <label><input type="radio" name="q_7f" value="yes"> Yes</label>
+            <label><input type="radio" name="q_7f" value="no" checked> No</label>
+        </div>
+        <div class="question">
+            <p>7g. Causing harm or suffering to any person because of his or her race, religion, national origin, membership in a particular social group, or political opinion?</p>
+            <label><input type="radio" name="q_7g" value="yes"> Yes</label>
+            <label><input type="radio" name="q_7g" value="no" checked> No</label>
+        </div>
+        <div class="question">
+            <p>8a. Have you EVER served in, been a member of, assisted (helped), or participated in any military or police unit?</p>
+            <label><input type="radio" name="q_8a" value="yes"> Yes</label>
+            <label><input type="radio" name="q_8a" value="no" checked> No</label>
+        </div>
+        <div class="question">
+            <p>8b. Have you EVER served in, been a member of, assisted (helped), or participated in any armed group (a group that carries weapons), for example: paramilitary unit (a group of people who act like a military group but are not part of the official military), self-defense unit, vigilante unit, rebel group, or guerrilla group? If you answered “Yes” to Item Number 8.a. or Item Number 8.b., include the name of the country, the name of the military unit or armed group, your rank or position, and your dates of involvement in your explanation in Part 14. Additional Information</p>
+            <label><input type="radio" name="q_8b" value="yes"> Yes</label>
+            <label><input type="radio" name="q_8b" value="no" checked> No</label>
+        </div>
+        <div class="question">
+            <p>9. Have you EVER worked, volunteered, or otherwise served in a place where people were detained (forced to stay), for example, a prison, jail, prison camp (a camp where prisoners of war or political prisoners are kept), detention facility, or labor camp, or have you EVER directed or participated in any other activity that involved detaining people?</p>
+            <label><input type="radio" name="q_9" value="yes"> Yes</label>
+            <label><input type="radio" name="q_9" value="no" checked> No</label>
+        </div>
+        <div class="question">
+            <p>10a. Were you EVER a part of any group, or did you EVER help any group, unit, or organization that used a weapon against any person, or threatened to do so?</p>
+            <label><input type="radio" name="q_10a" value="yes"> Yes</label>
+            <label><input type="radio" name="q_10a" value="no" checked> No</label>
+        </div>
+        <div id="q10b-container" class="question"> <!-- CONDITIONAL REQUIRED HERE -->
+            <p>10b. If you answered “Yes” to Item Number 10.a., when you were part of this group, or when you helped this group, did you ever use a weapon against another person?</p>
+            <label><input type="radio" name="q_10b" value="yes"> Yes</label>
+            <label><input type="radio" name="q_10b" value="no"> No</label>
+        </div>
+        <div id="q10c-container" class="question"> <!-- CONDITIONAL REQUIRED HERE -->
+            <p>10c. If you answered “Yes” to Item Number 10.a., when you were part of this group, or when you helped this group, did you ever threaten another person that you would use a weapon against that person?</p>
+            <label><input type="radio" name="q_10c" value="yes"> Yes</label>
+            <label><input type="radio" name="q_10c" value="no"> No</label>
+        </div>
+        <div class="question">
+            <p>11. Have you EVER sold, provided, or transported weapons, or assisted any person in selling, providing, or transporting weapons, which you knew or believed would be used against another person?</p>
+            <label><input type="radio" name="q_11" value="yes"> Yes</label>
+            <label><input type="radio" name="q_11" value="no" checked> No</label>
+        </div>
+        <div class="question">
+            <p>12. Have you EVER received any weapons training, paramilitary training, or other military-type training?</p>
+            <label><input type="radio" name="q_12" value="yes"> Yes</label>
+            <label><input type="radio" name="q_12" value="no" checked> No</label>
+        </div>
+        <div class="question">
+            <p>13. Have you EVER recruited (asked), enlisted (signed up), conscripted (required to join), or used any person under 15 years of age to serve in or help an armed group, or attempted or worked with others to do so?</p>
+            <label><input type="radio" name="q_13" value="yes"> Yes</label>
+            <label><input type="radio" name="q_13" value="no" checked> No</label>
+        </div>
+        <div class="question">
+            <p>14. Have you EVER used any person under 15 years of age to take part in hostilities or attempted or worked with others to do so? This could include participating in combat or providing services related to combat (such as serving as a messenger or transporting supplies).</p>
+            <label><input type="radio" name="q_14" value="yes"> Yes</label>
+            <label><input type="radio" name="q_14" value="no" checked> No</label>
+        </div>
+        <div class="question">
+            <p>15a. Have you EVER committed, agreed to commit, asked someone else to commit, helped commit, or tried to commit a crime or offense for which you were NOT arrested?</p>
+            <label><input type="radio" name="q_15a" value="yes"> Yes</label>
+            <label><input type="radio" name="q_15a" value="no" checked> No</label>
+        </div>
+        <div class="question">
+            <p>15b. Have you EVER been arrested, cited, detained or confined by any law enforcement officer, military official (in the U.S. or elsewhere), or immigration official for any reason, or been charged with a crime or offense?</p>
+            <label><input type="radio" name="q_15b" value="yes"> Yes</label>
+            <label><input type="radio" name="q_15b" value="no" checked> No</label>
+        </div>
+        <div class="question">
+            <p>16. If you received a suspended sentence, were placed on probation, or were paroled, have you completed your suspended sentence, probation, or parole?</p>
+            <label><input type="radio" name="q_16" value="yes"> Yes</label>
+            <label><input type="radio" name="q_16" value="no"> No</label>
+        </div>
+        <div class="question">
+            <p>17a. Engaged in prostitution, attempted to procure or import prostitutes or persons for the purpose of prostitution, or received any proceeds or money from prostitution?</p>
+            <label><input type="radio" name="q_17a" value="yes"> Yes</label>
+            <label><input type="radio" name="q_17a" value="no" checked> No</label>
+        </div>
+        <div class="question">
+            <p>17b. Manufactured, cultivated, produced, distributed, dispensed, sold, or smuggled (trafficked) any controlled substances, illegal drugs, narcotics, or drug paraphernalia in violation of any law or regulation of a U.S. state, the United States, or a foreign country?</p>
+            <label><input type="radio" name="q_17b" value="yes"> Yes</label>
+            <label><input type="radio" name="q_17b" value="no" checked> No</label>
+        </div>
+        <div class="question">
+            <p>17c. Been married to more than one person at the same time?</p>
+            <label><input type="radio" name="q_17c" value="yes"> Yes</label>
+            <label><input type="radio" name="q_17c" value="no" checked> No</label>
+        </div>
+        <div class="question">
+            <p>17d. Married someone in order to obtain an immigration benefit?</p>
+            <label><input type="radio" name="q_17d" value="yes"> Yes</label>
+            <label><input type="radio" name="q_17d" value="no" checked> No</label>
+        </div>
+        <div class="question">
+            <p>17e. Helped anyone to enter, or try to enter, the United States illegally?</p>
+            <label><input type="radio" name="q_17e" value="yes"> Yes</label>
+            <label><input type="radio" name="q_17e" value="no" checked> No</label>
+        </div>
+        <div class="question">
+            <p>17f. Gambled illegally or received income from illegal gambling?</p>
+            <label><input type="radio" name="q_17f" value="yes"> Yes</label>
+            <label><input type="radio" name="q_17f" value="no" checked> No</label>
+        </div>
+        <div class="question">
+            <p>17g. Failed to support your dependents (pay child support) or to pay alimony (court-ordered financial support after divorce or separation)?</p>
+            <label><input type="radio" name="q_17g" value="yes"> Yes</label>
+            <label><input type="radio" name="q_17g" value="no" checked> No</label>
+        </div>
+        <div class="question">
+            <p>17h. Made any misrepresentation to obtain any public benefit in the United States?</p>
+            <label><input type="radio" name="q_17h" value="yes"> Yes</label>
+            <label><input type="radio" name="q_17h" value="no" checked> No</label>
+        </div>
+        <div class="question">
+            <p>18. Have you EVER given any U.S. Government officials any information or documentation that was false, fraudulent, or misleading?</p>
+            <label><input type="radio" name="q_18" value="yes"> Yes</label>
+            <label><input type="radio" name="q_18" value="no" checked> No</label>
+        </div>
+        <div class="question">
+            <p>19. Have you EVER lied to any U.S. Government officials to gain entry or admission into the United States or to gain immigration benefits while in the United States?</p>
+            <label><input type="radio" name="q_19" value="yes"> Yes</label>
+            <label><input type="radio" name="q_19" value="no" checked> No</label>
+        </div>
+        <div class="question">
+            <p>20. Have you EVER been placed in removal, rescission, or deportation proceedings?</p>
+            <label><input type="radio" name="q_20" value="yes"> Yes</label>
+            <label><input type="radio" name="q_20" value="no" checked> No</label>
+        </div>
+        <div class="question">
+            <p>21. Have you EVER been removed or deported from the United States?</p>
+            <label><input type="radio" name="q_21" value="yes"> Yes</label>
+            <label><input type="radio" name="q_21" value="no" checked> No</label>
+        </div>
+        <div class="question">
+            <p>22a. Are you a male who lived in the United States at any time between your 18th and 26th birthdays? (Do not select “Yes” if you were a lawful nonimmigrant for all of that time period.)</p>
+            <label><input type="radio" name="q_22a" value="yes"> Yes</label>
+            <label><input type="radio" name="q_22a" value="no"> No</label>
+        </div>
+        <div id="q22b-container" class="question"> <!-- CONDITIONAL REQUIRED HERE -->
+            <p>22b. If you answered “Yes” to Item Number 22.a., did you register for the Selective Service?</p>
+            <label><input type="radio" name="q_22b" value="yes"> Yes</label>
+            <label><input type="radio" name="q_22b" value="no"> No</label>
+        </div>
+        <div id="q22c-container" class="question"> <!-- CONDITIONAL REQUIRED HERE; missing from previous iteration -->
+            <p>22c. If you answered “Yes,” to Item Number 22.b., provide information about your registration.</p>
+            <label><input type="date" name="q_22DateRegistered"></label>
+            <label><input type="text" name="q_22SelectiveServiceNo" maxlength="10"></label>
+        </div>
+        <div class="question">
+            <p>23. Have you EVER left the United States to avoid being drafted in the U.S. armed forces?</p>
+            <label><input type="radio" name="q_23" value="yes"> Yes</label>
+            <label><input type="radio" name="q_23" value="no" checked> No</label>
+        </div>
+        <div class="question">
+            <p>24. Have you EVER applied for any kind of exemption from military service in the U.S. armed forces?</p>
+            <label><input type="radio" name="q_24" value="yes"> Yes</label>
+            <label><input type="radio" name="q_24" value="no" checked> No</label>
+        </div>
+        <div id="q25-container" class="question"> <!-- CONDITIONAL REQUIRED HERE; IF no, skip from 25 to question 30.A -->
+            <p>25. Have you EVER served in the U.S. armed forces?</p>
+            <label><input type="radio" name="q_25" value="yes" onclick="toggleQ25()"> Yes</label>
+<label><input type="radio" name="q_25" value="no" onclick="toggleQ25()" checked> No</label>
+
+        </div>
+        <div id="q26a-container" class="question"> <!-- CONDITIONAL REQUIRED HERE -->
+            <p>26a. Are you currently a member of the U.S. armed forces?</p>
+            <label><input type="radio" name="q_26a" value="yes" onclick="toggleQ26a()"> Yes</label>
+<label><input type="radio" name="q_26a" value="no" onclick="toggleQ26a()"> No</label>
+
+        </div>
+        <div id="q26b-container" class="question"> <!-- CONDITIONAL REQUIRED HERE -->
+            <p>26b. If you answered “Yes” to Item Number 26.a., are you scheduled to deploy outside the United States,
+                including to a vessel, within the next 3 months?</p>
+            <label><input type="radio" name="q_26b" value="yes"> Yes</label>
+            <label><input type="radio" name="q_26b" value="no"> No</label>
+        </div>
+        <div id="q26c-container" class="question"> <!-- CONDITIONAL REQUIRED HERE -->
+            <p>26c. If you answered “Yes” to Item Number 26.a., are you currently stationed outside the United States?</p>
+            <label><input type="radio" name="q_26c" value="yes"> Yes</label>
+            <label><input type="radio" name="q_26c" value="no"> No</label>
+        </div>
+        <div id="q26d-container" class="question"> <!-- CONDITIONAL REQUIRED HERE -->
+            <p>26d. If you answered “No” to Item Number 26.a., are you a former U.S. military service member who is currently residing outside of the U.S.?</p>
+            <label><input type="radio" name="q_26d" value="yes"> Yes</label>
+            <label><input type="radio" name="q_26d" value="no"> No</label>
+        </div>
+        <div id="q27-container" class="question">
+            <p>27. Have you EVER been court-martialed or have you received a discharge characterized as other than honorable, bad conduct, or dishonorable, while in the U.S. armed forces?</p>
+            <label><input type="radio" name="q_27" value="yes"> Yes</label>
+            <label><input type="radio" name="q_27" value="no"> No</label>
+        </div>
+        <div id="q28-container" class="question">
+            <p>28. Have you EVER been discharged from training or service in the U.S. armed forces because you were an alien?</p>
+            <label><input type="radio" name="q_28" value="yes"> Yes</label>
+            <label><input type="radio" name="q_28" value="no"> No</label>
+        </div>
+        <div id="q29-container" class="question">
+            <p>29. Have you EVER deserted from the U.S. armed forces?</p>
+            <label><input type="radio" name="q_29" value="yes"> Yes</label>
+            <label><input type="radio" name="q_29" value="no"> No</label>
+        </div>
+        <div class="question">
+            <p>30a. Do you now have, or did you EVER have, a hereditary title or an order of nobility in any foreign country?</p>
+            <label><input type="radio" name="q_30a" value="yes"> Yes</label>
+            <label><input type="radio" name="q_30a" value="no" checked> No</label>
+        </div>
+        <div id="q30b-container" class="question"> <!-- CONDITIONAL REQUIRED HERE; missing text field in comparision to previous iteration -->
+            <p>30b. If you answered "Yes" to 30a, are you willing to give up any inherited titles or orders of nobility that you have in a foreign country at your naturalization ceremony?</p>
+            <label><input type="radio" name="q_30b" value="yes"> Yes</label>
+            <label><input type="radio" name="q_30b" value="no"> No</label>
+            <label><input type="text" name="q_30ListOfTitles"></label>
+        </div>
+        <div class="question">
+            <p>31. Do you support the Constitution and form of Government of the United States?</p>
+            <label><input type="radio" name="q_31" value="yes" checked> Yes</label>
+            <label><input type="radio" name="q_31" value="no"> No</label>
+        </div>
+        <div class="question">
+            <p>32. Do you understand the full Oath of Allegiance to the United States?</p>
+            <label><input type="radio" name="q_32" value="yes" checked> Yes</label>
+            <label><input type="radio" name="q_32" value="no"> No</label>
+        </div>
+        <div class="question"> <!-- CONDITIONAL REQUIRED HERE; if "YES", then skip 34-37 -->
+            <p>33. Are you unable to take the Oath of Allegiance because of a physical or developmental disability or mental impairment? If you answer “Yes,” skip Item Numbers 34. - 37. and see the Legal Guardian, Surrogate, or Designated Representative section in the Instructions</p>
+            <label><input type="radio" name="q_33" value="yes"> Yes</label>
+            <label><input type="radio" name="q_33" value="no" checked> No</label>
+        </div>
+        <div id="q34-container" class="question">
+            <p>34. Are you willing to take the full Oath of Allegiance to the United States?</p>
+            <label><input type="radio" name="q_34" value="yes" checked> Yes</label>
+            <label><input type="radio" name="q_34" value="no"> No</label>
+        </div>
+        <div id="q35-container" class="question">
+            <p>35. If the law requires it, are you willing to bear arms (carry weapons) on behalf of the United States?</p>
+            <label><input type="radio" name="q_35" value="yes" checked> Yes</label>
+            <label><input type="radio" name="q_35" value="no"> No</label>
+        </div>
+        <div id="q36-container" class="question">
+            <p>36. If the law requires it, are you willing to perform noncombatant services (do something that does not include fighting in a war) in the U.S. armed forces?</p>
+            <label><input type="radio" name="q_36" value="yes" checked> Yes</label>
+            <label><input type="radio" name="q_36" value="no"> No</label>
+        </div>
+        <div id="q37-container" class="question">
+            <p>37. If the law requires it, are you willing to perform work of national importance under civilian direction (do non-military work that the U.S. Government says is important to the country)?</p>
+            <label><input type="radio" name="q_37" value="yes" checked> Yes</label>
+            <label><input type="radio" name="q_37" value="no"> No</label>
+        </div>
+    </div>
+</div>
+
+<div class="collapsible-section">
+  <div class="collapsible-header">
+    <h3>Request for a Fee Reduction</h3>
+    <button class="collapsible-toggle">Collapse</button>
+  </div>
+  <div class="collapsible-content">
+    <fieldset>
+      <legend>Fee Reduction Request</legend>
+      
+      <p>1. My household income is less than or equal to 400% of the Federal Poverty Guidelines (see Instructions for required documentation).</p>
+      <div>
+        <label><input type="radio" name="feeReduction" value="yes"> Yes (complete Item Numbers 2. - 5.h.)</label>
+      </div>
+      <div>
+        <label><input type="radio" name="feeReduction" value="no"> No</label>
+      </div>
+      
+      <div id="feeReductionDetails" style="display: none; margin-top: 1rem;">
+        <div>
+          <label>2. Total household income: <input type="number" id="totalHouseholdIncome" min="0"></label>
+        </div>
+        
+        <div>
+          <label>3. My household size is: <input type="number" id="householdSize" min="1"></label>
+        </div>
+        
+        <div>
+          <label>4. Total number of household members earning income including yourself: <input type="number" id="earningMembers" min="1"></label>
+        </div>
+        
+        <div>
+          <p>5.a. I am the head of household:</p>
+          <label><input type="radio" name="headOfHousehold" value="yes"> Yes</label>
+          <label><input type="radio" name="headOfHousehold" value="no"> No</label>
+        </div>
+        
+        <div id="headOfHouseholdName" style="display: none; margin-top: 0.5rem;">
+          <label>5.b. Name of head of household (if you selected "No" in Item Number 5.a.): <input type="text" id="nameOfHeadOfHousehold"></label>
+        </div>
+      </div>
+    </fieldset>
+  </div>
+</div>
+
+
+<div class="collapsible-section">
+  <div class="collapsible-header">
+    <h3>Interpreter's Information</h3>
+    <button class="collapsible-toggle">Collapse</button>
+  </div>
+  <div class="collapsible-content">
+    <fieldset>
+      <legend>Interpreter's Full Name</legend>
+      <label>Family Name (Last Name): <input type="text" id="interpreterLastName" /></label>
+      <label>Given Name (First Name): <input type="text" id="interpreterFirstName" /></label>
+    </fieldset>
+
+    <fieldset>
+      <legend>Business Information</legend>
+      <label>Interpreter's Business or Organization Name: <input type="text" id="interpreterBusinessName" /></label>
+    </fieldset>
+
+    <fieldset>
+      <legend>Contact Information</legend>
+      <label>Daytime Telephone Number: <input type="tel" id="interpreterDaytimePhone" maxlength="12" placeholder="555-123-4567"/></label>
+      <label>Mobile Telephone Number (if any): <input type="tel" id="interpreterMobilePhone" maxlength="12" placeholder="555-123-4567"/></label>
+      <label>Email Address (if any): <input type="email" id="interpreterEmail" /></label>
+    </fieldset>
+  </div>
+</div>
+
+
+
+<div class="collapsible-section">
+  <div class="collapsible-header">
+    <h3>Preparer's Information</h3>
+    <button class="collapsible-toggle">Collapse</button>
+  </div>
+  <div class="collapsible-content">
+    <fieldset>
+      <legend>Preparer's Full Name</legend>
+      <label>Family Name (Last Name): <input type="text" id="preparerLastName" /></label>
+      <label>Given Name (First Name): <input type="text" id="preparerFirstName" /></label>
+    </fieldset>
+
+    <fieldset>
+      <legend>Business Information</legend>
+      <label>Preparer's Business or Organization Name: <input type="text" id="preparerBusinessName" /></label>
+    </fieldset>
+
+    <fieldset>
+      <legend>Contact Information</legend>
+      <label>Daytime Telephone Number: <input type="tel" id="preparerDaytimePhone" maxlength="12" placeholder="555-123-4567"/></label>
+      <label>Mobile Telephone Number (if any): <input type="tel" id="preparerMobilePhone" maxlength="12" placeholder="555-123-4567"/></label>
+      <label>Email Address (if any): <input type="email" id="preparerEmail" /></label>
+    </fieldset>
+  </div>
+</div>
+
+
+
+
+      
+      <button type="button" id="updatePreviewBtn">Update Preview</button>
+      <div id="errorMessage"></div>
+      <form id="uscis-form">
+<script>
+document.getElementById("uscis-form").addEventListener("submit", function(e) {
+  e.preventDefault();
+
+  if (!latestFilledPdfBytes) {
+    alert("Please click 'Update Preview' before downloading.");
+    return;
+  }
+
+  const blob = new Blob([latestFilledPdfBytes], { type: "application/pdf" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "Filled_Form.pdf";
+  a.click();
+  URL.revokeObjectURL(url);
+});
+
+</script>
+        <button type="submit">Download Filled PDF</button>
+      </form>
+    </div>
+  </div>
+  
+  <script>
+  
+	let latestFilledPdfBytes = null;
+
+    // Toggle collapse/expand for yes/no questions section
+	const toggleBtn = document.getElementById("toggleQuestions");
+	const questionsContent = document.getElementById("questionsContent");
+
+	toggleBtn.addEventListener("click", () => {
+		const collapsed = questionsContent.classList.toggle("collapsed");
+		toggleBtn.innerText = collapsed ? "Expand" : "Collapse";
+	});
+
+    
+    // Show/hide yes/no questions based on the selected form
+    const n400Questions = document.getElementById("n400Questions");
+    const formSelect = document.getElementById("formSelect");
+	
+	
+	      function toggleCountryFields() {
+      const isAR11 = formSelect.value === "ar11_conv.pdf";
+      document.querySelectorAll('select[id*="Country"]').forEach(sel => {
+        const lbl = sel.closest("label") || sel.parentElement;
+        lbl.style.display = isAR11 ? "none" : "";
+      });
+    }
+    formSelect.addEventListener("change", toggleCountryFields);
+    window.addEventListener("DOMContentLoaded", toggleCountryFields);
+	
+	
+formSelect.addEventListener("change", () => {
+  const form = formSelect.value;
+  
+  const prevFS = document.getElementById("previousPhysicalFieldset");
+if (prevFS) {
+  prevFS.style.display = (form === "ar11_conv.pdf") ? "" : "none";
+}
+
+
+  // 1) toggle the collapsible sections exactly as before
+  document.querySelectorAll(".collapsible-section").forEach(section => {
+    section.style.display = (form === "ar11_conv.pdf")
+      ? (
+          section.querySelector(".collapsible-header h3").innerText === "Information About You"
+       || section.querySelector(".collapsible-header h3").innerText === "Residence Information"
+        ) ? "block"
+          : "none"
+      : "block";
+  });
+
+  // hide N-400 extra questions unless it's N-400
+  document.getElementById("n400Questions").style.display =
+    (form === "n400_conv.pdf") ? "block" : "none";
+
+  // 2) **prune** the “Information About You” section for AR-11
+  const infoSection = Array.from(document.querySelectorAll(".collapsible-section"))
+    .find(sec => sec.querySelector("h3").innerText === "Information About You")
+    .querySelector(".collapsible-content");
+
+  const keepIds = ["firstName","middleName","lastName","dob","aNumber"];
+
+  if (form === "ar11_conv.pdf") {
+    // hide any direct child fieldset/div that doesn't contain one of our five inputs
+    infoSection.querySelectorAll(":scope > fieldset, :scope > div").forEach(el => {
+      const keep = keepIds.some(id => el.querySelector(`#${id}`));
+      el.style.display = keep ? "" : "none";
+    });
+
+    // inside the A-Number fieldset, hide everything except the A-Number label+input
+    const aFS = Array.from(infoSection.querySelectorAll("fieldset"))
+      .find(fs => fs.querySelector("#aNumber"));
+    aFS.querySelectorAll("*").forEach(el => {
+      const isLabel  = el.tagName==="LABEL" && el.getAttribute("for")==="aNumber";
+      const isInput  = el.id==="aNumber";
+      el.style.display = (isLabel || isInput) ? "" : "none";
+    });
+
+  } else {
+    // restore full “Information About You” for N-400 (undo any hides)
+    infoSection.querySelectorAll(":scope > fieldset, :scope > div").forEach(el => el.style.display = "");
+    const aFS = Array.from(infoSection.querySelectorAll("fieldset"))
+      .find(fs => fs.querySelector("#aNumber"));
+    aFS.querySelectorAll("*").forEach(el => el.style.display = "");
+  }
+  
+
+  
+
+
+
+  // 3) load the selected PDF
+  loadPDF(form);
+});
+
+
+    if(formSelect.value === "n400_conv.pdf"){
+      n400Questions.style.display = "block";
+    } else {
+      n400Questions.style.display = "none";
+    }
+    
+    // Dark mode toggle
+    const darkModeSwitch = document.getElementById("darkModeSwitch");
+    darkModeSwitch.addEventListener("change", function() {
+      if (this.checked) {
+        document.body.classList.add("dark-mode");
+      } else {
+        document.body.classList.remove("dark-mode");
+      }
+    });
+	
+	
+
+	
+	document.querySelectorAll('input[name="legalNameChange"]').forEach((elem) => {
+	  elem.addEventListener("change", function() {
+		const newFields = document.getElementById("newLegalNameFields");
+		newFields.style.display = this.value === "yes" ? "block" : "none";
+	  });
+	});
+	
+
+	
+    
+    // Text size controls
+    const decreaseTextSizeButton = document.getElementById("decreaseTextSize");
+    const increaseTextSizeButton = document.getElementById("increaseTextSize");
+    const textSizeDisplay = document.getElementById("textSizeDisplay");
+    let currentFontSize = 16;
+    decreaseTextSizeButton.addEventListener("click", () => {
+      if (currentFontSize > 10) {
+        currentFontSize -= 1;
+        textSizeDisplay.innerText = currentFontSize;
+        document.querySelector("#formPane").style.fontSize = currentFontSize + "px";
+        document.querySelector("#pdfPane").style.fontSize = currentFontSize + "px";
+      }
+    });
+    increaseTextSizeButton.addEventListener("click", () => {
+      if (currentFontSize < 30) {
+        currentFontSize += 1;
+        textSizeDisplay.innerText = currentFontSize;
+        document.querySelector("#formPane").style.fontSize = currentFontSize + "px";
+        document.querySelector("#pdfPane").style.fontSize = currentFontSize + "px";
+      }
+    });
+    
+    const pdfPreview = document.getElementById("pdfPreview");
+    const updatePreviewBtn = document.getElementById("updatePreviewBtn");
+    const resizer = document.getElementById("resizer");
+    const pdfPane = document.getElementById("pdfPane");
+    let originalPdfBytes = null;
+    let font = null;
+    let validateOnUpdate = false;
+    
+    /* Field coordinate mappings.
+       For "n400_conv.pdf", each yes/no question is assigned its own overlay coordinates.
+       (These dummy coordinates decrement by 10 in y for each question; adjust as needed.)
+    */
+    const fieldCoords = {
+	
+	"ar11_conv.pdf": {
+		  firstName:   { page: 0, x: 260, y: 658},
+		  middleName:  { page: 0, x: 430, y: 658},
+		  lastName:    { page: 0, x: 40, y: 658},
+		  aNumber:     { page: 0, x: 200, y: 623},
+		  dob:         { page: 0, x: 40, y: 623},
+		  mailAddress: { page: 0, x: 40, y: 534},
+		  mailCity:    { page: 0, x: 40, y: 501},
+		  mailState:   { page: 0, x: 392, y: 503},
+		  mailZip:     { page: 0, x: 450, y: 501},
+		  
+		  
+		  prevStreet:   { page:0, x:40,  y:443},
+		  prevCity:     { page:0, x:40,  y:408},
+		  prevState:    { page:0, x:392, y:408},
+		  prevZip:      { page:0, x:450, y:408},
+		  prevCountry:  { page:0, x:150, y:435 },
+  
+  
+		  // optional mailing address if “Different” is checked
+		  newMailAddress: { page: 0, x: 40, y: 349},
+		  newMailCity:    { page: 0, x: 40, y: 314},
+		  newMailState:   { page: 0, x: 393, y: 314},
+		  newMailZip:     { page: 0, x: 450, y: 314}
+		},
+    
+      "n400_conv.pdf": {
+        firstName:  { page: 0, x: 280, y: 136 },//good
+        middleName: { page: 0, x: 445, y: 136 },//good
+        lastName:   { page: 0, x: 63, y: 136 },//good
+		legalNameX: { page: 1, x: 278, y: 620 },         
+	    newFirstName: { page: 1, x: 278, y: 615 },         
+	    newMiddleName:{ page: 1, x: 445, y: 615 },         
+	    newLastName: { page: 1, x: 62, y: 615 },
+		dob:        { page: 1, x: 65, y: 543 },//good
+		birthCountry:       { page: 1, x: 62, y: 443 },
+		citizenshipCountry: { page: 1, x: 62, y: 406 },
+	
+		"q_10parent": { yes: { page: 1, x: 498, y: 356 }, no: { page: 1, x: 542, y: 356 } },
+		"q_11phys": { yes: { page: 1, x: 498, y: 320 }, no: { page: 1, x: 542, y: 320 } },
+		ethnicity: {
+			 hispanic:     { page: 2, x: 62, y: 659 },
+			 not_hispanic: { page: 2, x: 170, y: 659 }
+		},
+		race: {
+		  american_indian:  { page: 2, x: 62, y: 623 },
+		  asian:            { page: 2, x: 170, y: 623 },
+		  black:            { page: 2, x: 225, y: 623 },
+		  native_hawaiian:  { page: 2, x: 327, y: 623 },
+		  white:            { page: 2, x: 447, y: 623 }
+		},
+		heightFeet:         { page: 2, x: 124, y: 593 },
+		heightInches:       { page: 2, x: 216, y: 593 },
+		weight:             { page: 2, x: 380, y: 593 }, 
+		eyeColor: {
+		  black:            { page: 2, x: 62, y: 557 },
+		  blue:             { page: 2, x: 128, y: 557 },
+		  brown:            { page: 2, x: 176, y: 557 },
+		  gray:             { page: 2, x: 230, y: 557 },
+		  green:            { page: 2, x: 285, y: 557 },
+		  hazel:            { page: 2, x: 338, y: 557 },
+		  maroon:           { page: 2, x: 387, y: 557 },
+		  pink:             { page: 2, x: 446, y: 557 },
+		  other:            { page: 2, x: 495, y: 557 }
+		},
+		hairColor: {
+		  bald:             { page: 2, x: 62, y: 521 },
+		  black:            { page: 2, x: 128, y: 521 },
+		  blond:            { page: 2, x: 176, y: 521 },
+		  brown:            { page: 2, x: 230, y: 521 },
+		  gray:             { page: 2, x: 285, y: 521 },
+		  red:              { page: 2, x: 338, y: 521 },
+		  sandy:            { page: 2, x: 387, y: 521 },
+		  white:            { page: 2, x: 446, y: 521 },
+		  other:            { page: 2, x: 495, y: 521 }
+		},
+
+		permanentResidentDate: { page: 1, x: 241, y: 477 },  
+        ssn:        { page: 1, x: 290, y: 135 },//good
+		q12_newcard: {
+		yes: { page: 1, x: 62, y: 176 },  
+		no:  { page: 1, x: 62, y: 158 }
+		},
+		
+		q12_consent: {
+		yes: { page: 1, x: 499, y: 116 },  
+		no:  { page: 1, x: 541, y: 116 }
+		},
+		
+		
+		
+		
+		maritalStatus: {
+		  single: { page: 3, x: 62, y: 488 },
+		  married: { page: 3, x: 175, y: 488 },
+		  divorced: { page: 3, x: 236, y: 488 },
+		  widowed: { page: 3, x: 300, y: 488 },
+		  separated: { page: 3, x: 368, y: 488 },
+		  annulled: { page: 3, x: 434, y: 488 }
+		},
+		spouseArmedForces: {
+		  yes: { page: 3, x: 499, y: 452 },
+		  no: { page: 3, x: 541, y: 452 }
+		},
+		
+		marriageCount: { page: 3, x: 536, y: 430 },
+		spouseLastName:     { page: 3, x: 62, y: 235 },
+        spouseFirstName:    { page: 3, x: 267, y: 235 },
+        spouseMiddleName:   { page: 3, x: 447, y: 235 },
+        spouseDOB:          { page: 3, x: 62, y: 186 },
+        marriageDate:       { page: 3, x: 235, y: 186 },
+        spouseSameAddress: {
+            yes: { page: 3, x: 62, y: 147 },
+            no:  { page: 3, x: 62, y: 128 }
+        },
+        spouseCitizenByBirth: {
+            birth: { page: 3, x: 62, y: 92 },
+            other: { page: 3, x: 62, y: 75 }
+        },
+        spouseCitizenDate:  { page: 3, x: 327, y: 52 },
+        spouseANumber:      { page: 4, x: 368, y: 701 },
+        spouseMarriages:    { page: 4, x: 535, y: 679 },
+        spouseEmployer:     { page: 4, x: 260, y: 618 },
+		
+		childrenCount: { page: 4, x: 535, y: 529 },
+		
+		child1Name: { page: 4, x: 62, y: 375 },
+		child1DOB: { page: 4, x: 229, y: 375 },
+		child1Residence: { page: 4, x: 295, y: 375 },
+		child1Relationship: { page: 4, x: 403, y: 375 },
+		child1Support: { 
+		  yes: { page: 4, x: 505, y: 379 }, 
+		  no: { page: 4, x: 545, y: 379 }
+		},
+		child2Name: { page: 4, x: 62, y: 348 },
+		child2DOB: { page: 4, x: 229, y: 348 },
+		child2Residence: { page: 4, x: 295, y: 348 },
+		child2Relationship: { page: 4, x: 403, y: 348 },
+		child2Support: { 
+		  yes: { page: 4, x: 505, y: 349 }, 
+		  no: { page: 4, x: 545, y: 349 }
+		},
+		child3Name: { page: 4, x: 62, y: 318 },
+		child3DOB: { page: 4, x: 229, y: 318 },
+		child3Residence: { page: 4, x: 295, y: 318 },
+		child3Relationship: { page: 4, x: 403, y: 318 },
+		child3Support: { 
+		  yes: { page: 4, x: 505, y: 320 }, 
+		  no: { page: 4, x: 545, y: 320 }
+		},
+		
+		
+		// employment/school info
+		employment1Name: { page: 4, x: 63, y: 99 },
+		employment1CityTown: { page: 4, x: 158, y: 99 },
+		employment1StateProvince: { page: 4, x: 223, y: 99 },
+		employment1ZipPostal: { page: 4, x: 267, y: 99 },
+		employment1Country: { page: 4, x: 322, y: 99 },
+		employment1DateFrom: { page: 4, x: 373, y: 99 },
+		employment1Occupation: { page: 4, x: 493, y: 99 },
+
+		employment2Name: { page: 4, x: 63, y: 76 },
+		employment2CityTown: { page: 4, x: 158, y: 76 },
+		employment2StateProvince: { page: 4, x: 223, y: 76 },
+		employment2ZipPostal: { page: 4, x: 267, y: 76 },
+		employment2Country: { page: 4, x: 322, y: 76 },
+		employment2DateFrom: { page: 4, x: 373, y: 76 },
+		employment2DateTo: { page: 4, x: 433, y: 76 },
+		employment2Occupation: { page: 4, x: 493, y: 76 },
+
+		employment3Name: { page: 4, x: 63, y: 53 },
+		employment3CityTown: { page: 4, x: 158, y: 53 },
+		employment3StateProvince: { page: 4, x: 223, y: 53 },
+		employment3ZipPostal: { page: 4, x: 267, y: 53 },
+		employment3Country: { page: 4, x: 322, y: 53 },
+		employment3DateFrom: { page: 4, x: 373, y: 53 },
+		employment3DateTo: { page: 4, x: 433, y: 53 },
+		employment3Occupation: { page: 4, x: 493, y: 53 },
+		
+		//trip coord
+		trip1DateLeft: { page: 5, x: 73, y: 577 },
+		trip1DateReturned: { page: 5, x: 173, y: 577 },
+		trip1Countries: { page: 5, x: 255, y: 577 },
+
+		trip2DateLeft: { page: 5, x: 73, y: 555 },
+		trip2DateReturned: { page: 5, x: 173, y: 555 },
+		trip2Countries: { page: 5, x: 255, y: 555 },
+
+		trip3DateLeft: { page: 5, x: 73, y: 538 },
+		trip3DateReturned: { page: 5, x: 173, y: 538 },
+		trip3Countries: { page: 5, x: 255, y: 538 },
+
+		trip4DateLeft: { page: 5, x: 73, y: 519 },
+		trip4DateReturned: { page: 5, x: 173, y: 519 },
+		trip4Countries: { page: 5, x: 255, y: 519 },
+
+		trip5DateLeft: { page: 5, x: 73, y: 504 },
+		trip5DateReturned: { page: 5, x: 173, y: 504 },
+		trip5Countries: { page: 5, x: 255, y: 504 },
+
+		trip6DateLeft: { page: 5, x: 73, y: 488 },
+		trip6DateReturned: { page: 5, x: 173, y: 488 },
+		trip6Countries: { page: 5, x: 255, y: 488 },
+
+
+		uscisAccount: { page: 1, x: 74, y: 583 },
+		sex: {
+		 male:   { page: 1, x: 283, y: 581 }, 
+		 female: { page: 1, x: 331, y: 582 }  
+		},
+		aNumberMulti: [
+				    { page: 0, x: 458, y: 492 },  
+				    { page: 1, x: 458, y: 725 },  
+				    { page: 2, x: 458, y: 725 },
+					{ page: 3, x: 458, y: 725 }, 
+					{ page: 4, x: 458, y: 725 }, 
+					{ page: 5, x: 458, y: 725 }, 
+					{ page: 6, x: 458, y: 725 }, 
+					{ page: 7, x: 458, y: 725 },
+					{ page: 8, x: 458, y: 725 }, 
+					{ page: 9, x: 458, y: 725 }, 
+					{ page: 10, x: 458, y: 725 }, 
+					{ page: 11, x: 458, y: 725 }, 
+					{ page: 12, x: 458, y: 725 }, 
+					{ page: 13, x: 458, y: 725 }, 					
+				],
+        phone:      { page: 10, x: 67, y: 378 },//good
+        email:      { page: 10, x: 67, y: 341 },//good
+		
+        mailAddress:{ page: 2, x: 67, y: 317 },//good
+        mailCity:   { page: 2, x: 67, y: 280 },//good
+        mailCountry:{ page: 2, x: 356, y: 243 },//good
+        mailState:  { page: 2, x: 447, y: 280 },//good
+        mailProvince:{ page: 2, x: 64, y: 243 },//good
+        mailZip:    { page: 2, x: 520, y: 280 },//good
+        mailPostal: { page: 2, x: 225, y: 243 },//good
+		
+		sameAddress: {
+		  yes: { page: 2, x: 62, y: 50 }, 
+		  no:  { page: 2, x: 266, y: 50 }
+		},
+		
+		newMailAddress: { page: 3, x: 63, y: 635 },
+		newMailCity:    { page: 3, x: 63, y: 597 },
+		newMailState:   { page: 3, x: 447, y: 559 },
+		newMailZip:     { page: 3, x: 520, y: 370 },
+		newMailCountry: { page: 3, x: 356, y: 340 },  
+		newMailProvince: { page: 3, x: 63, y: 559 },  
+		newMailPostal:  { page: 3, x: 225, y: 340 },
+
+		
+		//PAGE 6 GOOD
+        firstName:  { page: 0, x: 280, y: 136 },//good
+        middleName: { page: 0, x: 445, y: 136 },//good
+        lastName:   { page: 0, x: 63, y: 136 },//good
+		legalNameX: { page: 1, x: 100, y: 450 },         
+	    newFirstName: { page: 1, x: 278, y: 615 },         
+	    newMiddleName:{ page: 1, x: 445, y: 615 },         
+	    newLastName: { page: 1, x: 62, y: 615 },
+		dob:        { page: 1, x: 65, y: 543 },//good
+        ssn:        { page: 1, x: 290, y: 135 },//good
+		aNumber:    { page: 0, x: 458, y: 492 },//good
+        phone:      { page: 10, x: 67, y: 378 },//good
+        email:      { page: 10, x: 67, y: 341 },//good
+
+		
+		//PAGE 6 GOOD
+        "q_1": { yes: { page: 5, x: 500, y: 374 }, no: { page: 5, x: 542, y: 374 } },
+        "q_2": { yes: { page: 5, x: 500, y: 356 }, no: { page: 5, x: 542, y: 356 } },
+        "q_3": { yes: { page: 5, x: 500, y: 314 }, no: { page: 5, x: 542, y: 314 } },
+        "q_4": { yes: { page: 5, x: 500, y: 295 }, no: { page: 5, x: 542, y: 295 } },
+        "q_5a": { yes: { page: 5, x: 500, y: 235 }, no: { page: 5, x: 542, y: 235 } },
+        "q_5b": { yes: { page: 5, x: 500, y: 206 }, no: { page: 5, x: 542, y: 206 } },
+		//PAGE 7
+        "q_6a": { yes: { page: 6, x: 500, y: 674 }, no: { page: 6, x: 542, y: 674 } },
+        "q_6b": { yes: { page: 6, x: 500, y: 655 }, no: { page: 6, x: 542, y: 655 } },
+        "q_6c": { yes: { page: 6, x: 500, y: 625 }, no: { page: 6, x: 542, y: 625 } },
+        "q_7a": { yes: { page: 6, x: 500, y: 578 }, no: { page: 6, x: 542, y: 578 } },
+        "q_7b": { yes: { page: 6, x: 500, y: 560 }, no: { page: 6, x: 542, y: 560 } },
+        "q_7c": { yes: { page: 6, x: 500, y: 542 }, no: { page: 6, x: 542, y: 542 } },
+        "q_7d": { yes: { page: 6, x: 500, y: 524 }, no: { page: 6, x: 542, y: 524 } },
+        "q_7e": { yes: { page: 6, x: 500, y: 506 }, no: { page: 6, x: 542, y: 506 } },
+        "q_7f": { yes: { page: 6, x: 500, y: 476 }, no: { page: 6, x: 542, y: 476 } },
+        "q_7g": { yes: { page: 6, x: 500, y: 457 }, no: { page: 6, x: 542, y: 457 } },
+        "q_8a": { yes: { page: 6, x: 500, y: 427 }, no: { page: 6, x: 542, y: 427 } },
+        "q_8b": { yes: { page: 6, x: 500, y: 397 }, no: { page: 6, x: 542, y: 397 } },
+        "q_9": { yes: { page: 6, x: 500, y: 301 }, no: { page: 6, x: 542, y: 301 } },
+        "q_10a": { yes: { page: 6, x: 500, y: 247 }, no: { page: 6, x: 542, y: 247 } },
+        "q_10b": { yes: { page: 6, x: 500, y: 217 }, no: { page: 6, x: 542, y: 217 } },
+        "q_10c": { yes: { page: 6, x: 500, y: 187  }, no: { page: 6, x: 542, y: 187  } },
+        "q_11": { yes: { page: 6, x: 500, y: 157  }, no: { page: 6, x: 542, y: 157  } },
+        "q_12": { yes: { page: 6, x: 500, y: 128  }, no: { page: 6, x: 542, y: 128  } },
+        "q_13": { yes: { page: 6, x: 500, y: 109  }, no: { page: 6, x: 542, y: 109  } },
+        "q_14": { yes: { page: 6, x: 500, y: 67  }, no: { page: 6, x: 542, y: 67  } },
+		//PAGE 8//good
+        "q_15a": { yes: { page: 7, x: 500, y: 455  }, no: { page: 7, x: 542, y: 455  } },
+        "q_15b": { yes: { page: 7, x: 500, y: 425  }, no: { page: 7, x: 542, y: 425  } },
+        "q_16": { yes: { page: 7, x: 500, y: 133  }, no: { page: 7, x: 542, y: 133  } },
+		//PAGE 9//good
+        "q_17a": { yes: { page: 8, x: 500, y: 686  }, no: { page: 8, x: 542, y: 686  } },
+        "q_17b": { yes: { page: 8, x: 500, y: 655   }, no: { page: 8, x: 542, y: 655   } },
+        "q_17c": { yes: { page: 8, x: 500, y: 614 }, no: { page: 8, x: 542, y: 614 } },
+        "q_17d": { yes: { page: 8, x: 500, y: 596 }, no: { page: 8, x: 542, y: -20 } },
+        "q_17e": { yes: { page: 8, x: 500, y: 578 }, no: { page: 8, x: 542, y: 596 } },
+        "q_17f": { yes: { page: 8, x: 500, y: 560 }, no: { page: 8, x: 542, y: 560 } },
+        "q_17g": { yes: { page: 8, x: 500, y: 541 }, no: { page: 8, x: 542, y: 541 } },
+        "q_17h": { yes: { page: 8, x: 500, y: 512 }, no: { page: 8, x: 542, y: 512 } },
+        "q_18": { yes: { page: 8, x: 500, y: 494 }, no: { page: 8, x: 542, y: 494 } },
+        "q_19": { yes: { page: 8, x: 500, y: 463 }, no: { page: 8, x: 542, y: 463 } },
+        "q_20": { yes: { page: 8, x: 500, y: 392 }, no: { page: 8, x: 542, y: 392 } },
+        "q_21": { yes: { page: 8, x: 500, y: 374 }, no: { page: 8, x: 542, y: 374 } },
+        "q_22a": { yes: { page: 8, x: 500, y: 324 }, no: { page: 8, x: 542, y: 324 } },
+        "q_22b": { yes: { page: 8, x: 500, y: 297 }, no: { page: 8, x: 542, y: 297 } },
+		"q_22DateRegistered":   { page: 8, x: 62, y: 243 },
+		"q_22SelectiveServiceNo": { page: 8, x: 192, y: 243 },
+        "q_23": { yes: { page: 8, x: 500, y: 176 }, no: { page: 8, x: 542, y: 176 } },
+        "q_24": { yes: { page: 8, x: 500, y: 158 }, no: { page: 8, x: 542, y: 158 } },
+        "q_25": { yes: { page: 8, x: 500, y: 140 }, no: { page: 8, x: 542, y: 140 } },
+		//PAGE 10
+        "q_26a": { yes: { page: 9, x: 500, y: 686 }, no: { page: 9, x: 542, y: 686 } },
+		"q_26b": { yes: { page: 9, x: 500, y: 667 }, no: { page: 9, x: 542, y: 667 } },
+        "q_26c": { yes: { page: 9, x: 500, y: 614 }, no: { page: 9, x: 542, y: 614 } },
+        "q_26d": { yes: { page: 9, x: 500, y: 595 }, no: { page: 9, x: 542, y: 595 } },
+        "q_27": { yes: { page: 9, x: 500, y: 547 }, no: { page: 9, x: 542, y: 547 } },
+        "q_28": { yes: { page: 9, x: 500, y: 518 }, no: { page: 9, x: 542, y: 518 } },
+        "q_29": { yes: { page: 9, x: 500, y: 488 }, no: { page: 9, x: 542, y: 488 } },
+        "q_30a": { yes: { page: 9, x: 391, y: 440 }, no: { page: 9, x: 433, y: 440 } },
+        "q_30b": { yes: { page: 9, x: 500, y: 407 }, no: { page: 9, x: 542, y: 407 } },
+		"q_30ListOfTitles": { page: 9, x:110 , y:388 },
+        "q_31": { yes: { page: 9, x: 500, y: 320 }, no: { page: 9, x: 542, y: 320 } },
+        "q_32": { yes: { page: 9, x: 500, y: 302 }, no: { page: 9, x: 542, y: 302 } },
+        "q_33": { yes: { page: 9, x: 500, y: 281}, no: { page: 9, x: 542, y: 281 } },
+        "q_34": { yes: { page: 9, x: 500, y: 242 }, no: { page: 9, x: 542, y: 242 } },
+        "q_35": { yes: { page: 9, x: 500, y: 224 }, no: { page: 9, x: 542, y: 224} },
+        "q_36": { yes: { page: 9, x: 500, y: 206 }, no: { page: 9, x: 542, y: 206 } },
+        "q_37": { yes: { page: 9, x: 500, y: 176 }, no: { page: 9, x: 542, y: 176 } },
+		reason: {
+			A: { page: 0, x: 86, y: 447 },
+			B: { page: 0, x: 86, y: 428 },
+			C: { page: 0, x: 86, y: 410 },
+			D: { page: 0, x: 86, y: 380 },
+			E: { page: 0, x: 86, y: 290 },
+			F: { page: 0, x: 86, y: 260 },
+			G: { page: 0, x: 86, y: 227 }
+		},
+		reasonDLocation: { page: 0, x: 103, y: 310 },
+		reasonGText:     { page: 0, x: 290, y: 227 },
+		
+		
+		//interpreter coord
+		interpreterLastName: { page: 11, x: 65, y: 665 },
+		interpreterFirstName: { page: 11, x: 327, y: 665 },
+		interpreterBusinessName: { page: 11, x: 65, y: 625 },
+		interpreterDaytimePhone: { page: 11, x: 65, y: 564 },
+		interpreterMobilePhone: { page: 11, x: 331, y: 564 },
+		interpreterEmail: { page: 11, x: 65, y: 525 },
+		
+		//preparer coord
+		preparerLastName: { page: 11, x: 65, y: 306 },
+		preparerFirstName: { page: 11, x: 327, y: 306 },
+		preparerBusinessName: { page: 11, x: 65, y: 268 },
+		preparerDaytimePhone: { page: 11, x: 65, y: 203 },
+		preparerMobilePhone: { page: 11, x: 337, y: 203 },
+		preparerEmail: { page: 11, x: 65, y: 166 },
+		
+		
+		//fee reductions
+		feeReduction: {
+		  yes: { page: 10, x: 62, y: 626 },
+		  no: { page: 10, x: 62, y: 608 }
+		},
+		totalHouseholdIncome: { page: 10, x: 529, y: 585 },
+		householdSize: { page: 10, x: 529, y: 561 },
+		earningMembers: { page: 10, x: 529, y: 539 },
+		headOfHousehold: {
+		  yes: { page: 10, x: 500, y: 518 },
+		  no: { page: 10, x: 541, y: 518 }
+		},
+		nameOfHeadOfHousehold: { page: 10, x: 364, y: 496 }
+
+    },
+      
+  
+	  }
+
+    
+    // Resizer code
+    let isResizing = false;
+    const resizeOverlay = document.createElement('div');
+    resizeOverlay.style.display = 'none';
+    resizeOverlay.style.position = 'fixed';
+    resizeOverlay.style.top = 0;
+    resizeOverlay.style.left = 0;
+    resizeOverlay.style.right = 0;
+    resizeOverlay.style.bottom = 0;
+    resizeOverlay.style.cursor = 'ew-resize';
+    resizeOverlay.style.zIndex = 9999;
+    document.body.appendChild(resizeOverlay);
+    resizer.addEventListener('mousedown', (e) => {
+      isResizing = true;
+      resizeOverlay.style.display = 'block';
+      document.body.style.cursor = 'ew-resize';
+      e.preventDefault();
+    });
+    document.addEventListener('mousemove', (e) => {
+      if (!isResizing) return;
+      const newWidth = e.clientX;
+      if (newWidth > 250 && newWidth < window.innerWidth - 250) {
+        pdfPane.style.width = `${newWidth}px`;
+      }
+    });
+    document.addEventListener('mouseup', () => {
+      if (isResizing) {
+        isResizing = false;
+        resizeOverlay.style.display = 'none';
+        document.body.style.cursor = 'default';
+      }
+    });
+    
+    function maskSSN(value) {
+      let digits = value.replace(/\D/g, '').substring(0, 9);
+      if (digits.length > 5) {
+        return digits.slice(0, 3) + "-" + digits.slice(3, 5) + "-" + digits.slice(5);
+      } else if (digits.length > 3) {
+        return digits.slice(0, 3) + "-" + digits.slice(3);
+      } else {
+        return digits;
+      }
+    }
+    function maskPhone(value) {
+      let digits = value.replace(/\D/g, '').substring(0, 10);
+      if (digits.length > 6) {
+        return digits.slice(0, 3) + "-" + digits.slice(3, 6) + "-" + digits.slice(6);
+      } else if (digits.length > 3) {
+        return digits.slice(0, 3) + "-" + digits.slice(3);
+      } else {
+        return digits;
+      }
+    }
+    document.getElementById("ssn").addEventListener("input", function() {
+      this.value = maskSSN(this.value);
+    });
+	
+	document.getElementById("aNumber").addEventListener("input", function () {
+	  let raw = this.value.replace(/\D/g, ""); // Remove non-digits
+	  if (raw.length > 9) raw = raw.slice(0, 9);
+
+	  let formatted = raw.replace(/^(\d{3})(\d{0,3})(\d{0,3})$/, function (_, a, b, c) {
+		let result = a;
+		if (b) result += "-" + b;
+		if (c) result += "-" + c;
+		return result;
+	  });
+
+	  this.value = formatted;
+	});
+	
+    document.getElementById("phone").addEventListener("input", function() {
+      this.value = maskPhone(this.value);
+    });
+    
+	
+	
+	function updateStateField() {
+		const country = document.getElementById("mailCountry").value;
+		const stateContainer = document.getElementById("mailStateContainer");
+		stateContainer.innerHTML = "";
+
+		if (country === "US") {
+			const stateSelect = document.createElement("select");
+			stateSelect.id = "mailState";
+			const states = [
+  { name: "Alabama", code: "AL" },
+  { name: "Alaska", code: "AK" },
+  { name: "Arizona", code: "AZ" },
+  { name: "Arkansas", code: "AR" },
+  { name: "California", code: "CA" },
+  { name: "Colorado", code: "CO" },
+  { name: "Connecticut", code: "CT" },
+  { name: "Delaware", code: "DE" },
+  { name: "Florida", code: "FL" },
+  { name: "Georgia", code: "GA" },
+  { name: "Hawaii", code: "HI" },
+  { name: "Idaho", code: "ID" },
+  { name: "Illinois", code: "IL" },
+  { name: "Indiana", code: "IN" },
+  { name: "Iowa", code: "IA" },
+  { name: "Kansas", code: "KS" },
+  { name: "Kentucky", code: "KY" },
+  { name: "Louisiana", code: "LA" },
+  { name: "Maine", code: "ME" },
+  { name: "Maryland", code: "MD" },
+  { name: "Massachusetts", code: "MA" },
+  { name: "Michigan", code: "MI" },
+  { name: "Minnesota", code: "MN" },
+  { name: "Mississippi", code: "MS" },
+  { name: "Missouri", code: "MO" },
+  { name: "Montana", code: "MT" },
+  { name: "Nebraska", code: "NE" },
+  { name: "Nevada", code: "NV" },
+  { name: "New Hampshire", code: "NH" },
+  { name: "New Jersey", code: "NJ" },
+  { name: "New Mexico", code: "NM" },
+  { name: "New York", code: "NY" },
+  { name: "North Carolina", code: "NC" },
+  { name: "North Dakota", code: "ND" },
+  { name: "Ohio", code: "OH" },
+  { name: "Oklahoma", code: "OK" },
+  { name: "Oregon", code: "OR" },
+  { name: "Pennsylvania", code: "PA" },
+  { name: "Rhode Island", code: "RI" },
+  { name: "South Carolina", code: "SC" },
+  { name: "South Dakota", code: "SD" },
+  { name: "Tennessee", code: "TN" },
+  { name: "Texas", code: "TX" },
+  { name: "Utah", code: "UT" },
+  { name: "Vermont", code: "VT" },
+  { name: "Virginia", code: "VA" },
+  { name: "Washington", code: "WA" },
+  { name: "West Virginia", code: "WV" },
+  { name: "Wisconsin", code: "WI" },
+  { name: "Wyoming", code: "WY" }
+];
+
+stateSelect.innerHTML = `<option value="">-- Select State --</option>` +
+  states.map(s => `<option value="${s.code}">${s.name}</option>`).join("");
+
+		stateContainer.appendChild(stateSelect);
+		} else {
+		const provinceField = document.createElement("input");
+		provinceField.type = "text";
+		provinceField.id = "mailProvince";
+		stateContainer.appendChild(provinceField);
+		}
+	}
+	document.getElementById("newMailCountry").addEventListener("change", updateDifferentMailStateField);
+
+	document.getElementById("mailCountry").addEventListener("change", () => {
+		updateStateField();
+		updateZipField(); // Keep ZIP/Postal sync
+	});
+
+	updateStateField(); // Run once on load
+	updateZipField();
+	updateDifferentMailStateField();
+
+
+
+
+	function updateDifferentMailStateField() {
+	  const country = document.getElementById("newMailCountry").value;
+	  const stateContainer = document.getElementById("newMailStateContainer");
+	  stateContainer.innerHTML = "";
+
+	  if (country === "US") {
+		const stateSelect = document.createElement("select");
+		stateSelect.id = "newMailState";
+		const states = [
+		  { name: "Alabama", code: "AL" }, { name: "Alaska", code: "AK" },
+		  { name: "Arizona", code: "AZ" }, { name: "Arkansas", code: "AR" },
+		  { name: "California", code: "CA" }, { name: "Colorado", code: "CO" },
+		  { name: "Connecticut", code: "CT" }, { name: "Delaware", code: "DE" },
+		  { name: "Florida", code: "FL" }, { name: "Georgia", code: "GA" },
+		  { name: "Hawaii", code: "HI" }, { name: "Idaho", code: "ID" },
+		  { name: "Illinois", code: "IL" }, { name: "Indiana", code: "IN" },
+		  { name: "Iowa", code: "IA" }, { name: "Kansas", code: "KS" },
+		  { name: "Kentucky", code: "KY" }, { name: "Louisiana", code: "LA" },
+		  { name: "Maine", code: "ME" }, { name: "Maryland", code: "MD" },
+		  { name: "Massachusetts", code: "MA" }, { name: "Michigan", code: "MI" },
+		  { name: "Minnesota", code: "MN" }, { name: "Mississippi", code: "MS" },
+		  { name: "Missouri", code: "MO" }, { name: "Montana", code: "MT" },
+		  { name: "Nebraska", code: "NE" }, { name: "Nevada", code: "NV" },
+		  { name: "New Hampshire", code: "NH" }, { name: "New Jersey", code: "NJ" },
+		  { name: "New Mexico", code: "NM" }, { name: "New York", code: "NY" },
+		  { name: "North Carolina", code: "NC" }, { name: "North Dakota", code: "ND" },
+		  { name: "Ohio", code: "OH" }, { name: "Oklahoma", code: "OK" },
+		  { name: "Oregon", code: "OR" }, { name: "Pennsylvania", code: "PA" },
+		  { name: "Rhode Island", code: "RI" }, { name: "South Carolina", code: "SC" },
+		  { name: "South Dakota", code: "SD" }, { name: "Tennessee", code: "TN" },
+		  { name: "Texas", code: "TX" }, { name: "Utah", code: "UT" },
+		  { name: "Vermont", code: "VT" }, { name: "Virginia", code: "VA" },
+		  { name: "Washington", code: "WA" }, { name: "West Virginia", code: "WV" },
+		  { name: "Wisconsin", code: "WI" }, { name: "Wyoming", code: "WY" }
+		];
+
+		const defaultOption = document.createElement("option");
+		defaultOption.value = "";
+		defaultOption.textContent = "-- Select State --";
+		stateSelect.appendChild(defaultOption);
+
+		states.forEach(state => {
+		  const option = document.createElement("option");
+		  option.value = state.code;
+		  option.textContent = state.name;
+		  stateSelect.appendChild(option);
+		});
+
+		stateContainer.appendChild(stateSelect);
+	  } else {
+		const input = document.createElement("input");
+		input.type = "text";
+		input.id = "newMailState";
+		stateContainer.appendChild(input);
+	  }
+	}
+
+
+
+    function updateZipField() {
+      const country = document.getElementById("mailCountry").value;
+      const zipContainer = document.getElementById("zipContainer");
+      const zipLabel = document.getElementById("zipLabel");
+      while (zipContainer.firstChild) {
+        zipContainer.removeChild(zipContainer.firstChild);
+      }
+      if (country === "US") {
+        zipLabel.innerText = "ZIP Code:";
+        let zipField = document.createElement("input");
+        zipField.type = "tel";
+        zipField.id = "mailZip";
+        zipField.maxLength = "5";
+        zipField.placeholder = "12345";
+        zipContainer.appendChild(zipField);
+      } else {
+        zipLabel.innerText = "Postal Code:";
+        let postalField = document.createElement("input");
+        postalField.type = "tel";
+        postalField.id = "mailPostal";
+        postalField.maxLength = "5";
+        postalField.placeholder = "12345";
+        zipContainer.appendChild(postalField);
+      }
+    }
+    
+    function validateInputs() {
+      const ssnInput = document.getElementById("ssn").value;
+      const phoneInput = document.getElementById("phone").value;
+      const country = document.getElementById("mailCountry").value;
+      let zipDigits = "";
+      if (country === "US") {
+        zipDigits = document.getElementById("mailZip").value.replace(/\D/g, '');
+      } else {
+        zipDigits = document.getElementById("mailPostal").value.replace(/\D/g, '');
+      }
+      const ssnDigits = ssnInput.replace(/\D/g, '');
+      const phoneDigits = phoneInput.replace(/\D/g, '');
+      let errors = [];
+      if (ssnDigits.length !== 9) {
+        errors.push("SSN must contain exactly 9 digits.");
+      }
+      if (phoneDigits.length !== 10) {
+        errors.push("Phone number must contain exactly 10 digits.");
+      }
+	  
+	  if (document.getElementById("aNumber")) {
+		  const el = document.getElementById("aNumber");
+		  const err = document.getElementById("aNumberError");
+		  const raw = el.value.replace(/\D/g, "");
+		  if (raw.length !== 9) {
+			err.textContent = "A-Number must be exactly 9 digits.";
+			isValid = false;
+		  } else {
+			err.textContent = "";
+		  }
+		}
+
+      if (zipDigits.length !== 5) {
+        if (country === "US") {
+          errors.push("ZIP must contain exactly 5 digits.");
+        } else {
+          errors.push("Postal Code must contain exactly 5 digits.");
+        }
+      }
+	  
+	  const dobValue = document.getElementById("dob").value;
+		if (dobValue) {
+			const today = new Date().toISOString().split("T")[0];
+            if (dobValue > today) {
+				errors.push("Date of Birth cannot be in the future.");
+			}
+		}
+	  
+	  
+      const errorMessageDiv = document.getElementById("errorMessage");
+      if (errors.length > 0) {
+        errorMessageDiv.innerText = errors.join(" ");
+        return false;
+      } else {
+        errorMessageDiv.innerText = "";
+        return true;
+      }
+    }
+    
+    function formatSSN(ssn) {
+      let digits = ssn.replace(/\D/g, '');
+      if (digits.length === 9) {
+        return digits.slice(0, 3) + "-" + digits.slice(3, 5) + "-" + digits.slice(5);
+      }
+      return ssn;
+    }
+    function formatPhone(phone) {
+      let digits = phone.replace(/\D/g, '');
+      if (digits.length === 10) {
+        return digits.slice(0, 3) + "-" + digits.slice(3, 6) + "-" + digits.slice(6);
+      }
+      return phone;
+    }
+    
+    async function loadPDF(filename) {
+      const res = await fetch(filename);
+      originalPdfBytes = await res.arrayBuffer();
+      await updatePreview();
+    }
+    
+    async function updatePreview() {
+      if (!originalPdfBytes) return;
+      if (validateOnUpdate && !validateInputs()) return;
+      const pdfDoc = await PDFLib.PDFDocument.load(originalPdfBytes, { ignoreEncryption: true });
+      const pages = pdfDoc.getPages();
+      if (!font) font = await pdfDoc.embedFont(PDFLib.StandardFonts.Helvetica);
+      const currentForm = formSelect.value;
+      const coords = fieldCoords[currentForm];
+	  
+
+		// Ethnicity (radio - like yes/no)
+		const ethnicityInput = document.querySelector('input[name="ethnicity"]:checked')?.value;
+		if (ethnicityInput && coords.ethnicity[ethnicityInput]) {
+		  const { page, x, y } = coords.ethnicity[ethnicityInput];
+		  pages[page].drawText("X", { x, y, size: 10, font });
+		}
+		
+		// Process Preparer Information
+		const preparerLastName = document.getElementById("preparerLastName")?.value;
+		if (preparerLastName && coords.preparerLastName) {
+		  pages[coords.preparerLastName.page].drawText(preparerLastName, {
+			x: coords.preparerLastName.x,
+			y: coords.preparerLastName.y,
+			size: 10,
+			font
+		  });
+		}
+
+		const preparerFirstName = document.getElementById("preparerFirstName")?.value;
+		if (preparerFirstName && coords.preparerFirstName) {
+		  pages[coords.preparerFirstName.page].drawText(preparerFirstName, {
+			x: coords.preparerFirstName.x,
+			y: coords.preparerFirstName.y,
+			size: 10,
+			font
+		  });
+		}
+
+		const preparerBusinessName = document.getElementById("preparerBusinessName")?.value;
+		if (preparerBusinessName && coords.preparerBusinessName) {
+		  pages[coords.preparerBusinessName.page].drawText(preparerBusinessName, {
+			x: coords.preparerBusinessName.x,
+			y: coords.preparerBusinessName.y,
+			size: 10,
+			font
+		  });
+		}
+
+		const preparerDaytimePhone = document.getElementById("preparerDaytimePhone")?.value;
+		if (preparerDaytimePhone && coords.preparerDaytimePhone) {
+		  pages[coords.preparerDaytimePhone.page].drawText(formatPhone(preparerDaytimePhone), {
+			x: coords.preparerDaytimePhone.x,
+			y: coords.preparerDaytimePhone.y,
+			size: 10,
+			font
+		  });
+		}
+
+		const preparerMobilePhone = document.getElementById("preparerMobilePhone")?.value;
+		if (preparerMobilePhone && coords.preparerMobilePhone) {
+		  pages[coords.preparerMobilePhone.page].drawText(formatPhone(preparerMobilePhone), {
+			x: coords.preparerMobilePhone.x,
+			y: coords.preparerMobilePhone.y,
+			size: 10,
+			font
+		  });
+		}
+
+		const preparerEmail = document.getElementById("preparerEmail")?.value;
+		if (preparerEmail && coords.preparerEmail) {
+		  pages[coords.preparerEmail.page].drawText(preparerEmail, {
+			x: coords.preparerEmail.x,
+			y: coords.preparerEmail.y,
+			size: 10,
+			font
+		  });
+		}
+		
+		
+		// Process Interpreter Information
+		const interpreterLastName = document.getElementById("interpreterLastName")?.value;
+		if (interpreterLastName && coords.interpreterLastName) {
+		  pages[coords.interpreterLastName.page].drawText(interpreterLastName, {
+			x: coords.interpreterLastName.x,
+			y: coords.interpreterLastName.y,
+			size: 10,
+			font
+		  });
+		}
+
+		const interpreterFirstName = document.getElementById("interpreterFirstName")?.value;
+		if (interpreterFirstName && coords.interpreterFirstName) {
+		  pages[coords.interpreterFirstName.page].drawText(interpreterFirstName, {
+			x: coords.interpreterFirstName.x,
+			y: coords.interpreterFirstName.y,
+			size: 10,
+			font
+		  });
+		}
+
+		const interpreterBusinessName = document.getElementById("interpreterBusinessName")?.value;
+		if (interpreterBusinessName && coords.interpreterBusinessName) {
+		  pages[coords.interpreterBusinessName.page].drawText(interpreterBusinessName, {
+			x: coords.interpreterBusinessName.x,
+			y: coords.interpreterBusinessName.y,
+			size: 10,
+			font
+		  });
+		}
+
+		const interpreterDaytimePhone = document.getElementById("interpreterDaytimePhone")?.value;
+		if (interpreterDaytimePhone && coords.interpreterDaytimePhone) {
+		  pages[coords.interpreterDaytimePhone.page].drawText(formatPhone(interpreterDaytimePhone), {
+			x: coords.interpreterDaytimePhone.x,
+			y: coords.interpreterDaytimePhone.y,
+			size: 10,
+			font
+		  });
+		}
+
+		const interpreterMobilePhone = document.getElementById("interpreterMobilePhone")?.value;
+		if (interpreterMobilePhone && coords.interpreterMobilePhone) {
+		  pages[coords.interpreterMobilePhone.page].drawText(formatPhone(interpreterMobilePhone), {
+			x: coords.interpreterMobilePhone.x,
+			y: coords.interpreterMobilePhone.y,
+			size: 10,
+			font
+		  });
+		}
+
+		const interpreterEmail = document.getElementById("interpreterEmail")?.value;
+		if (interpreterEmail && coords.interpreterEmail) {
+		  pages[coords.interpreterEmail.page].drawText(interpreterEmail, {
+			x: coords.interpreterEmail.x,
+			y: coords.interpreterEmail.y,
+			size: 10,
+			font
+		  });
+		}
+		
+		
+		// Previous Physical Address — Street
+		const prevStreet = document.getElementById("prevStreet")?.value;
+		if (prevStreet && coords.prevStreet) {
+		  pages[coords.prevStreet.page].drawText(prevStreet, {
+			x: coords.prevStreet.x,
+			y: coords.prevStreet.y,
+			size: 10,
+			font
+		  });
+		}
+
+		// Previous Physical Address — City
+		const prevCity = document.getElementById("prevCity")?.value;
+		if (prevCity && coords.prevCity) {
+		  pages[coords.prevCity.page].drawText(prevCity, {
+			x: coords.prevCity.x,
+			y: coords.prevCity.y,
+			size: 10,
+			font
+		  });
+		}
+
+		// Previous Physical Address — Country (select)
+		const prevCountry = document.getElementById("prevCountry")?.value;
+		if (prevCountry && coords.prevCountry) {
+		  pages[coords.prevCountry.page].drawText(prevCountry, {
+			x: coords.prevCountry.x,
+			y: coords.prevCountry.y,
+			size: 10,
+			font
+		  });
+		}
+
+		// Previous Physical Address — State
+		const prevState = document.getElementById("prevState")?.value;
+		if (prevState && coords.prevState) {
+		  pages[coords.prevState.page].drawText(prevState, {
+			x: coords.prevState.x,
+			y: coords.prevState.y,
+			size: 10,
+			font
+		  });
+		}
+
+
+		// Previous Physical Address — ZIP
+		const prevZip = document.getElementById("prevZip")?.value;
+		if (prevZip && coords.prevZip) {
+		  pages[coords.prevZip.page].drawText(prevZip, {
+			x: coords.prevZip.x,
+			y: coords.prevZip.y,
+			size: 10,
+			font
+		  });
+		}
+
+		
+		
+		// Process Fee Reduction Request section
+		const feeReduction = document.querySelector('input[name="feeReduction"]:checked')?.value;
+		if (feeReduction && coords.feeReduction && coords.feeReduction[feeReduction]) {
+		  const { page, x, y } = coords.feeReduction[feeReduction];
+		  pages[page].drawText("X", { x, y, size: 10, font });
+		}
+
+		// Only process these fields if "Yes" is checked for fee reduction
+		if (feeReduction === 'yes') {
+		  const totalHouseholdIncome = document.getElementById("totalHouseholdIncome")?.value;
+		  if (totalHouseholdIncome && coords.totalHouseholdIncome) {
+			pages[coords.totalHouseholdIncome.page].drawText(totalHouseholdIncome, {
+			  x: coords.totalHouseholdIncome.x,
+			  y: coords.totalHouseholdIncome.y,
+			  size: 10,
+			  font
+			});
+		  }
+
+		  const householdSize = document.getElementById("householdSize")?.value;
+		  if (householdSize && coords.householdSize) {
+			pages[coords.householdSize.page].drawText(householdSize, {
+			  x: coords.householdSize.x,
+			  y: coords.householdSize.y,
+			  size: 10,
+			  font
+			});
+		  }
+
+		  const earningMembers = document.getElementById("earningMembers")?.value;
+		  if (earningMembers && coords.earningMembers) {
+			pages[coords.earningMembers.page].drawText(earningMembers, {
+			  x: coords.earningMembers.x,
+			  y: coords.earningMembers.y,
+			  size: 10,
+			  font
+			});
+		  }
+
+		  const headOfHousehold = document.querySelector('input[name="headOfHousehold"]:checked')?.value;
+		  if (headOfHousehold && coords.headOfHousehold && coords.headOfHousehold[headOfHousehold]) {
+			const { page, x, y } = coords.headOfHousehold[headOfHousehold];
+			pages[page].drawText("X", { x, y, size: 10, font });
+		  }
+
+		  // Only show name of head of household if "No" is selected for 5.a
+		  if (headOfHousehold === 'no') {
+			const nameOfHeadOfHousehold = document.getElementById("nameOfHeadOfHousehold")?.value;
+			if (nameOfHeadOfHousehold && coords.nameOfHeadOfHousehold) {
+			  pages[coords.nameOfHeadOfHousehold.page].drawText(nameOfHeadOfHousehold, {
+				x: coords.nameOfHeadOfHousehold.x,
+				y: coords.nameOfHeadOfHousehold.y,
+				size: 10,
+				font
+			  });
+			}
+		  }
+		}
+		
+		
+		const sexInput = document.querySelector('input[name="sex"]:checked');
+		if (sexInput && coords.sex && coords.sex[sexInput.value]) {
+		  const { page, x, y } = coords.sex[sexInput.value];
+		  pages[page].drawText("X", { x, y, size: 10, font });
+		}
+		
+		// Handle Physical Address Confirmation (sameAddress)
+		// Only write if different mailing address is selected
+		const sameAddressInput = document.querySelector('input[name="sameAddress"]:checked')?.value;
+		if (sameAddressInput === "no") {
+		  const newMailAddressInput = document.getElementById("newMailAddress")?.value;
+		  if (newMailAddressInput && coords.newMailAddress) {
+			const { page, x, y } = coords.newMailAddress;
+			pages[page].drawText(newMailAddressInput, { x, y, size: 10, font });
+		  }
+
+		  const newMailCityInput = document.getElementById("newMailCity")?.value;
+		  if (newMailCityInput && coords.newMailCity) {
+			const { page, x, y } = coords.newMailCity;
+			pages[page].drawText(newMailCityInput, { x, y, size: 10, font });
+		  }
+
+		  const newMailCountrySelect = document.getElementById("newMailCountry");
+		  const selectedNewCountryCode = newMailCountrySelect?.value;
+		  const selectedNewCountryName = newMailCountrySelect?.selectedOptions[0]?.textContent.trim();
+
+		  if (selectedNewCountryName && coords.newMailCountry) {
+			const { page, x, y } = coords.newMailCountry;
+			pages[page].drawText(selectedNewCountryName, { x, y, size: 10, font });
+		  }
+
+		  if (selectedNewCountryCode === "US") {
+			const newMailStateSelect = document.getElementById("newMailState");
+			const newMailStateFullName = newMailStateSelect?.selectedOptions[0]?.textContent.trim();
+			if (newMailStateFullName && coords.newMailState) {
+			  const { page, x, y } = coords.newMailState;
+			  pages[page].drawText(newMailStateFullName, { x, y, size: 10, font });
+			}
+
+			const newMailZipInput = document.getElementById("newMailZip")?.value;
+			if (newMailZipInput && coords.newMailZip) {
+			  const { page, x, y } = coords.newMailZip;
+			  pages[page].drawText(newMailZipInput, { x, y, size: 10, font });
+			}
+		  } else {
+			const newMailProvinceInput = document.getElementById("newMailState")?.value;
+			if (newMailProvinceInput && coords.newMailProvince) {
+			  const { page, x, y } = coords.newMailProvince;
+			  pages[page].drawText(newMailProvinceInput, { x, y, size: 10, font });
+			}
+
+			const newMailPostalInput = document.getElementById("newMailZip")?.value;
+			if (newMailPostalInput && coords.newMailPostal) {
+			  const { page, x, y } = coords.newMailPostal;
+			  pages[page].drawText(newMailPostalInput, { x, y, size: 10, font });
+			}
+		  }
+		}
+
+
+
+
+
+		// Race (multiple checkboxes)
+		document.querySelectorAll('input[name="race"]:checked').forEach(el => {
+		  const val = el.value;
+		  if (coords.race[val]) {
+			const { page, x, y } = coords.race[val];
+			pages[page].drawText("X", { x, y, size: 10, font });
+		  }
+		});
+
+		// Height (feet and inches)
+		const heightFeet = document.getElementById("heightFeet")?.value;
+		if (heightFeet && coords.heightFeet) {
+		  pages[coords.heightFeet.page].drawText(heightFeet, {
+			x: coords.heightFeet.x,
+			y: coords.heightFeet.y,
+			size: 10,
+			font
+		  });
+		}
+
+		const heightInches = document.getElementById("heightInches")?.value;
+		if (heightInches && coords.heightInches) {
+		  pages[coords.heightInches.page].drawText(heightInches, {
+			x: coords.heightInches.x,
+			y: coords.heightInches.y,
+			size: 10,
+			font
+		  });
+		}
+
+		// Weight
+		const weightInput = document.getElementById("weight");
+		if (weightInput && weightInput.value) {
+		  let weightValue = weightInput.value.replace(/\D/g, ""); // remove any non-digit
+		  weightValue = weightValue.padStart(3, "0"); // pad to 3 digits if necessary
+
+		  const baseX = coords.weight.x;
+		  const y = coords.weight.y;
+		  const page = coords.weight.page;
+
+		  for (let i = 0; i < Math.min(3, weightValue.length); i++) {
+			const digit = weightValue[i];
+			if (digit && pages[page]) {
+			  pages[page].drawText(digit, { x: baseX + i * 18, y, size: 10, font });
+			  // ^ move x by ~20 units for each next box
+			}
+		  }
+		}
+
+
+		// Eye Color (radio)
+		const eyeColor = document.querySelector('input[name="eyeColor"]:checked')?.value;
+		if (eyeColor && coords.eyeColor[eyeColor]) {
+		  const { page, x, y } = coords.eyeColor[eyeColor];
+		  pages[page].drawText("X", { x, y, size: 10, font });
+		}
+
+		// Hair Color (radio)
+		const hairColor = document.querySelector('input[name="hairColor"]:checked')?.value;
+		if (hairColor && coords.hairColor[hairColor]) {
+		  const { page, x, y } = coords.hairColor[hairColor];
+		  pages[page].drawText("X", { x, y, size: 10, font });
+		}
+		
+		const q12_newcard = document.querySelector('input[name="q12_newcard"]:checked')?.value;
+		if (q12_newcard && coords.q12_newcard && coords.q12_newcard[q12_newcard]) {
+		  const { page, x, y } = coords.q12_newcard[q12_newcard];
+		  pages[page].drawText("X", { x, y, size: 10, font });
+		}
+		
+		
+		const q12_consent = document.querySelector('input[name="q12_consent"]:checked')?.value;
+		if (q12_consent && coords.q12_consent && coords.q12_consent[q12_consent]) {
+		  const { page, x, y } = coords.q12_consent[q12_consent];
+		  pages[page].drawText("X", { x, y, size: 10, font });
+		}
+		
+		
+		  const ms = document.querySelector('input[name="maritalStatus"]:checked')?.value;
+		  if (ms && coords.maritalStatus && coords.maritalStatus[ms]) {
+			const { page, x, y } = coords.maritalStatus[ms];
+			pages[page].drawText("X", { x, y, size: 10, font });
+		  }
+
+		  
+		  const saf = document.querySelector('input[name="spouseArmedForces"]:checked')?.value;
+		  if (saf && coords.spouseArmedForces && coords.spouseArmedForces[saf]) {
+			const { page, x, y } = coords.spouseArmedForces[saf];
+			pages[page].drawText("X", { x, y, size: 10, font });
+		  }
+
+		  const mcount = document.getElementById("marriageCount")?.value;
+		  if (mcount && coords.marriageCount) {
+			// coords.marriageCount is a single {page,x,y}
+			const { page, x, y } = coords.marriageCount;
+			pages[page].drawText(String(mcount), { x, y, size: 10, font });
+		  }
+
+
+
+	  
+	  const uscisEl = document.getElementById("uscisAccount");
+		if (uscisEl && coords.uscisAccount) {
+		  const { page, x, y } = coords.uscisAccount;
+		  if (pages[page] && uscisEl.value.trim()) {
+			pages[page].drawText(uscisEl.value.trim(), { x, y, size: 10, font });
+		  }
+		}
+
+      const prDateEl = document.getElementById("permanentResidentDate");
+		if (prDateEl && coords.permanentResidentDate) {
+		  const { page, x, y } = coords.permanentResidentDate;
+		  const rawDate = prDateEl.value;
+		  let formattedDate = "";
+		  if (rawDate) {
+			const [year, month, day] = rawDate.split("-");
+			formattedDate = `${month}/${day}/${year}`;
+		  }
+		  if (pages[page] && formattedDate) {
+			pages[page].drawText(formattedDate, { x, y, size: 10, font });
+		  }
+		}
+		
+		const birthCountryEl = document.getElementById("birthCountry");
+		if (birthCountryEl && coords.birthCountry) {
+		  const { page, x, y } = coords.birthCountry;
+		  if (pages[page] && birthCountryEl.value.trim()) {
+			pages[page].drawText(birthCountryEl.value.trim(), { x, y, size: 10, font });
+		  }
+		}
+
+		const citizenshipCountryEl = document.getElementById("citizenshipCountry");
+		if (citizenshipCountryEl && coords.citizenshipCountry) {
+		  const { page, x, y } = coords.citizenshipCountry;
+		  if (pages[page] && citizenshipCountryEl.value.trim()) {
+			pages[page].drawText(citizenshipCountryEl.value.trim(), { x, y, size: 10, font });
+		  }
+		}
+
+
+
+	  const aNumberEl = document.getElementById("aNumber");
+		if (aNumberEl && coords.aNumberMulti) {
+		  let value = aNumberEl.value.replace(/\D/g, "").replace(/^(\d{3})(\d{3})(\d{3})$/, "$1-$2-$3");
+		  coords.aNumberMulti.forEach(({ page, x, y }) => {
+			if (pages[page] && value) {
+			  pages[page].drawText(value, { x, y, size: 10, font });
+			}
+		  });
+		}
+		
+		
+		const mailAddressInput = document.getElementById("mailAddress")?.value;
+		if (mailAddressInput && coords.mailAddress) {
+		  const { page, x, y } = coords.mailAddress;
+		  pages[page].drawText(mailAddressInput, { x, y, size: 10, font });
+		}
+
+		const mailCityInput = document.getElementById("mailCity")?.value;
+		if (mailCityInput && coords.mailCity) {
+		  const { page, x, y } = coords.mailCity;
+		  pages[page].drawText(mailCityInput, { x, y, size: 10, font });
+		}
+
+		const mailCountryInput = document.getElementById("mailCountry")?.value;
+		if (mailCountryInput) {
+		  if (mailCountryInput === "US") {
+			const mailStateInput = document.getElementById("mailState")?.value;
+			if (mailStateInput && coords.mailState) {
+			  const { page, x, y } = coords.mailState;
+			  pages[page].drawText(mailStateInput, { x, y, size: 10, font });
+			}
+			const mailZipInput = document.getElementById("zip")?.value;
+			if (mailZipInput && coords.mailZip) {
+			  const { page, x, y } = coords.mailZip;
+			  pages[page].drawText(mailZipInput, { x, y, size: 10, font });
+			}
+		  } else {
+			const mailProvinceInput = document.getElementById("mailState")?.value;
+			if (mailProvinceInput && coords.mailProvince) {
+			  const { page, x, y } = coords.mailProvince;
+			  pages[page].drawText(mailProvinceInput, { x, y, size: 10, font });
+			}
+			const mailPostalInput = document.getElementById("zip")?.value;
+			if (mailPostalInput && coords.mailPostal) {
+			  const { page, x, y } = coords.mailPostal;
+			  pages[page].drawText(mailPostalInput, { x, y, size: 10, font });
+			}
+		  }
+		}
+		
+		
+
+
+
+	  
+		const drawField = (fieldId, fieldName) => {
+		  const el = document.getElementById(fieldId);
+		  if (!el) return; // Skip if field doesn't exist
+
+		  let value;
+		  if (fieldId === "mailCountry") {
+			value = el.options[el.selectedIndex].text;
+		  } else {
+			value = el.value;
+
+			if (fieldId === "ssn") {
+			  value = formatSSN(value);
+			} else if (fieldId === "aNumber") {
+				  value = el.value.replace(/\D/g, "").replace(/^(\d{3})(\d{3})(\d{3})$/, "$1-$2-$3");
+				} else if (fieldId === "phone") {
+			  value = formatPhone(value);
+			} else if (fieldId === "dob") {
+			  const parts = value.split("-");
+			  if (parts.length === 3) {
+				value = `${parts[1]}/${parts[2]}/${parts[0]}`; // MM/DD/YYYY
+			  }
+			}
+		  }
+
+		  if (coords && coords[fieldName] && value) {
+			if (coords[fieldName].page !== undefined) {
+			  const { page, x, y } = coords[fieldName];
+			  if (pages[page]) {
+				pages[page].drawText(value, { x, y, size: 10, font });
+			  }
+			}
+		  }
+		};
+
+      
+      drawField("firstName", "firstName");
+      drawField("middleName", "middleName");
+      drawField("lastName", "lastName");
+	  drawField("newFirstName", "newFirstName");
+	  drawField("newMiddleName", "newMiddleName");
+	  drawField("newLastName", "newLastName");
+      drawField("ssn", "ssn");
+	  drawField("dob", "dob");
+	  drawField("aNumber", "aNumber");
+      drawField("phone", "phone");
+      drawField("email", "email");
+      drawField("mailCountry", "mailCountry");
+      drawField("mailAddress", "mailAddress");
+      drawField("mailCity", "mailCity");
+	
+	  
+
+      if (document.getElementById("mailCountry").value === "US") {
+        drawField("mailState", "mailState");
+        drawField("mailZip", "mailZip");
+      } else {
+        drawField("mailProvince", "mailProvince");
+        drawField("mailPostal", "mailPostal");
+      }
+	  
+		const selectedReason = document.querySelector('input[name="reason"]:checked');
+		if (selectedReason && coords.reason && coords.reason[selectedReason.value]) {
+		  const { page, x, y } = coords.reason[selectedReason.value];
+		  pages[page].drawText("X", { x, y, size: 10, font });
+
+		  if (selectedReason.value === "D") {
+			const val = document.getElementById("reasonDLocation").value;
+			if (val && coords.reasonDLocation) {
+			  const { page, x, y } = coords.reasonDLocation;
+			  pages[page].drawText(val, { x, y, size: 10, font });
+			}
+		  }
+
+		  if (selectedReason.value === "G") {
+			const val = document.getElementById("reasonGText").value;
+			if (val && coords.reasonGText) {
+			  const { page, x, y } = coords.reasonGText;
+			  pages[page].drawText(val, { x, y, size: 10, font });
+			}
+		  }
+		}
+
+
+      
+      // Process each yes/no question individually.
+      // Only draw an "X" if a radio button is selected.
+      const processQuestion = (questionName) => {
+        const input = document.querySelector(`input[name="${questionName}"]:checked`);
+        if (input && coords[questionName] && coords[questionName][input.value]) {
+          const { page, x, y } = coords[questionName][input.value];
+          pages[page].drawText("X", { x, y, size: 10, font });
+        }
+      };
+	  
+	  processQuestion("q_10parent");
+	  processQuestion("q_11phys");
+
+      
+      processQuestion("q_1");
+      processQuestion("q_2");
+      processQuestion("q_3");
+      processQuestion("q_4");
+      processQuestion("q_5a");
+      processQuestion("q_5b");
+      processQuestion("q_6a");
+      processQuestion("q_6b");
+      processQuestion("q_6c");
+      processQuestion("q_7a");
+      processQuestion("q_7b");
+      processQuestion("q_7c");
+      processQuestion("q_7d");
+      processQuestion("q_7e");
+      processQuestion("q_7f");
+      processQuestion("q_7g");
+      processQuestion("q_8a");
+      processQuestion("q_8b");
+      processQuestion("q_9");
+      processQuestion("q_10a");
+      processQuestion("q_10b");
+      processQuestion("q_10c");
+      processQuestion("q_11");
+      processQuestion("q_12");
+      processQuestion("q_13");
+      processQuestion("q_14");
+      processQuestion("q_15a");
+      processQuestion("q_15b");
+      processQuestion("q_16");
+      processQuestion("q_17a");
+      processQuestion("q_17b");
+      processQuestion("q_17c");
+      processQuestion("q_17d");
+      processQuestion("q_17e");
+      processQuestion("q_17f");
+      processQuestion("q_17g");
+      processQuestion("q_17h");
+      processQuestion("q_18");
+      processQuestion("q_19");
+      processQuestion("q_20");
+      processQuestion("q_21");
+      processQuestion("q_22a");
+	  
+	{
+	  const dateVal = document.querySelector('input[name="q_22DateRegistered"]')?.value;
+	  if (dateVal && coords.q_22DateRegistered) {
+		const { page, x, y } = coords.q_22DateRegistered;
+		pages[page].drawText(dateVal, { x, y, size: 10, font });
+	  }
+	  const svcNo = document.querySelector('input[name="q_22SelectiveServiceNo"]')?.value;
+	  if (svcNo && coords.q_22SelectiveServiceNo) {
+		const { page, x, y } = coords.q_22SelectiveServiceNo;
+		pages[page].drawText(svcNo, { x, y, size: 10, font });
+	  }
+	}
+
+      processQuestion("q_22b");
+      processQuestion("q_23");
+      processQuestion("q_24");
+      processQuestion("q_25");
+      processQuestion("q_26a");
+	  processQuestion("q_26b");
+      processQuestion("q_26c");
+      processQuestion("q_26d");
+      processQuestion("q_27");
+      processQuestion("q_28");
+      processQuestion("q_29");
+      processQuestion("q_30a");
+      processQuestion("q_30b");
+	  {
+  const titleVal = document.querySelector('input[name="q_30ListOfTitles"]')?.value;
+  if (titleVal && coords.q_30ListOfTitles) {
+    const { page, x, y } = coords.q_30ListOfTitles;
+    pages[page].drawText(titleVal, {
+      x,
+      y,
+      size: 10,
+      font,
+    });
+  }
+}
+	  processQuestion("sameAddress");
+      processQuestion("q_31");
+      processQuestion("q_32");
+      processQuestion("q_33");
+      processQuestion("q_34");
+      processQuestion("q_35");
+      processQuestion("q_36");
+      processQuestion("q_37");
+	  
+	  
+	  
+	  // Process spouse information
+const spouseFirstName = document.querySelector('input[name="spouseFirstName"]')?.value;
+if (spouseFirstName && coords.spouseFirstName) {
+  pages[coords.spouseFirstName.page].drawText(spouseFirstName, {
+    x: coords.spouseFirstName.x,
+    y: coords.spouseFirstName.y,
+    size: 10,
+    font
+  });
+}
+
+const spouseMiddleName = document.querySelector('input[name="spouseMiddleName"]')?.value;
+if (spouseMiddleName && coords.spouseMiddleName) {
+  pages[coords.spouseMiddleName.page].drawText(spouseMiddleName, {
+    x: coords.spouseMiddleName.x,
+    y: coords.spouseMiddleName.y,
+    size: 10,
+    font
+  });
+}
+
+const spouseLastName = document.querySelector('input[name="spouseLastName"]')?.value;
+if (spouseLastName && coords.spouseLastName) {
+  pages[coords.spouseLastName.page].drawText(spouseLastName, {
+    x: coords.spouseLastName.x,
+    y: coords.spouseLastName.y,
+    size: 10,
+    font
+  });
+}
+
+const spouseDOB = document.querySelector('input[name="spouseDOB"]')?.value;
+if (spouseDOB && coords.spouseDOB) {
+  const parts = spouseDOB.split("-");
+  const formattedDate = parts.length === 3 ? `${parts[1]}/${parts[2]}/${parts[0]}` : spouseDOB;
+  pages[coords.spouseDOB.page].drawText(formattedDate, {
+    x: coords.spouseDOB.x,
+    y: coords.spouseDOB.y,
+    size: 10,
+    font
+  });
+}
+
+const marriageDate = document.querySelector('input[name="marriageDate"]')?.value;
+if (marriageDate && coords.marriageDate) {
+  const parts = marriageDate.split("-");
+  const formattedDate = parts.length === 3 ? `${parts[1]}/${parts[2]}/${parts[0]}` : marriageDate;
+  pages[coords.marriageDate.page].drawText(formattedDate, {
+    x: coords.marriageDate.x,
+    y: coords.marriageDate.y,
+    size: 10,
+    font
+  });
+}
+
+// Process spouse radio buttons
+const spouseSameAddress = document.querySelector('input[name="spouseSameAddress"]:checked')?.value;
+if (spouseSameAddress && coords.spouseSameAddress && coords.spouseSameAddress[spouseSameAddress]) {
+  const { page, x, y } = coords.spouseSameAddress[spouseSameAddress];
+  pages[page].drawText("X", { x, y, size: 10, font });
+}
+
+const spouseCitizenByBirth = document.querySelector('input[name="spouseCitizenByBirth"]:checked')?.value;
+if (spouseCitizenByBirth && coords.spouseCitizenByBirth && coords.spouseCitizenByBirth[spouseCitizenByBirth]) {
+  const { page, x, y } = coords.spouseCitizenByBirth[spouseCitizenByBirth];
+  pages[page].drawText("X", { x, y, size: 10, font });
+}
+
+// Additional spouse fields
+const spouseCitizenDate = document.querySelector('input[name="spouseCitizenDate"]')?.value;
+if (spouseCitizenDate && coords.spouseCitizenDate) {
+  const parts = spouseCitizenDate.split("-");
+  const formattedDate = parts.length === 3 ? `${parts[1]}/${parts[2]}/${parts[0]}` : spouseCitizenDate;
+  pages[coords.spouseCitizenDate.page].drawText(formattedDate, {
+    x: coords.spouseCitizenDate.x,
+    y: coords.spouseCitizenDate.y,
+    size: 10,
+    font
+  });
+}
+
+const spouseANumber = document.querySelector('input[name="spouseANumber"]')?.value;
+if (spouseANumber && coords.spouseANumber) {
+  const formattedANumber = spouseANumber.replace(/\D/g, "").replace(/^(\d{3})(\d{3})(\d{3})$/, "$1-$2-$3");
+  pages[coords.spouseANumber.page].drawText(formattedANumber, {
+    x: coords.spouseANumber.x,
+    y: coords.spouseANumber.y,
+    size: 10,
+    font
+  });
+}
+
+const spouseMarriages = document.querySelector('input[name="spouseMarriages"]')?.value;
+if (spouseMarriages && coords.spouseMarriages) {
+  pages[coords.spouseMarriages.page].drawText(spouseMarriages, {
+    x: coords.spouseMarriages.x,
+    y: coords.spouseMarriages.y,
+    size: 10,
+    font
+  });
+}
+
+const spouseEmployer = document.querySelector('input[name="spouseEmployer"]')?.value;
+if (spouseEmployer && coords.spouseEmployer) {
+  pages[coords.spouseEmployer.page].drawText(spouseEmployer, {
+    x: coords.spouseEmployer.x,
+    y: coords.spouseEmployer.y,
+    size: 10,
+    font
+  });
+}
+
+// Process Children Information
+const childrenCount = document.getElementById('childrenCount')?.value;
+if (childrenCount && coords.childrenCount) {
+  pages[coords.childrenCount.page].drawText(childrenCount, {
+    x: coords.childrenCount.x,
+    y: coords.childrenCount.y,
+    size: 10,
+    font
+  });
+}
+
+// Child 1
+const child1Name = document.getElementById('child1Name')?.value;
+if (child1Name && coords.child1Name) {
+  pages[coords.child1Name.page].drawText(child1Name, {
+    x: coords.child1Name.x,
+    y: coords.child1Name.y,
+    size: 10,
+    font
+  });
+}
+
+const child1DOB = document.getElementById('child1DOB')?.value;
+if (child1DOB && coords.child1DOB) {
+  const parts = child1DOB.split('-');
+  const formattedDate = parts.length === 3 ? `${parts[1]}/${parts[2]}/${parts[0]}` : child1DOB;
+  pages[coords.child1DOB.page].drawText(formattedDate, {
+    x: coords.child1DOB.x,
+    y: coords.child1DOB.y,
+    size: 10,
+    font
+  });
+}
+
+const child1Residence = document.getElementById('child1Residence')?.value;
+if (child1Residence && coords.child1Residence) {
+  pages[coords.child1Residence.page].drawText(child1Residence, {
+    x: coords.child1Residence.x,
+    y: coords.child1Residence.y,
+    size: 10,
+    font
+  });
+}
+
+const child1Relationship = document.getElementById('child1Relationship')?.value;
+if (child1Relationship && coords.child1Relationship) {
+  pages[coords.child1Relationship.page].drawText(child1Relationship, {
+    x: coords.child1Relationship.x,
+    y: coords.child1Relationship.y,
+    size: 10,
+    font
+  });
+}
+
+const child1Support = document.querySelector('input[name="child1Support"]:checked')?.value;
+if (child1Support && coords.child1Support && coords.child1Support[child1Support]) {
+  const { page, x, y } = coords.child1Support[child1Support];
+  pages[page].drawText("X", { x, y, size: 10, font });
+}
+
+// Child 2
+const child2Name = document.getElementById('child2Name')?.value;
+if (child2Name && coords.child2Name) {
+  pages[coords.child2Name.page].drawText(child2Name, {
+    x: coords.child2Name.x,
+    y: coords.child2Name.y,
+    size: 10,
+    font
+  });
+}
+
+const child2DOB = document.getElementById('child2DOB')?.value;
+if (child2DOB && coords.child2DOB) {
+  const parts = child2DOB.split('-');
+  const formattedDate = parts.length === 3 ? `${parts[1]}/${parts[2]}/${parts[0]}` : child2DOB;
+  pages[coords.child2DOB.page].drawText(formattedDate, {
+    x: coords.child2DOB.x,
+    y: coords.child2DOB.y,
+    size: 10,
+    font
+  });
+}
+
+const child2Residence = document.getElementById('child2Residence')?.value;
+if (child2Residence && coords.child2Residence) {
+  pages[coords.child2Residence.page].drawText(child2Residence, {
+    x: coords.child2Residence.x,
+    y: coords.child2Residence.y,
+    size: 10,
+    font
+  });
+}
+
+const child2Relationship = document.getElementById('child2Relationship')?.value;
+if (child2Relationship && coords.child2Relationship) {
+  pages[coords.child2Relationship.page].drawText(child2Relationship, {
+    x: coords.child2Relationship.x,
+    y: coords.child2Relationship.y,
+    size: 10,
+    font
+  });
+}
+
+const child2Support = document.querySelector('input[name="child2Support"]:checked')?.value;
+if (child2Support && coords.child2Support && coords.child2Support[child2Support]) {
+  const { page, x, y } = coords.child2Support[child2Support];
+  pages[page].drawText("X", { x, y, size: 10, font });
+}
+
+// Child 3
+const child3Name = document.getElementById('child3Name')?.value;
+if (child3Name && coords.child3Name) {
+  pages[coords.child3Name.page].drawText(child3Name, {
+    x: coords.child3Name.x,
+    y: coords.child3Name.y,
+    size: 10,
+    font
+  });
+}
+
+const child3DOB = document.getElementById('child3DOB')?.value;
+if (child3DOB && coords.child3DOB) {
+  const parts = child3DOB.split('-');
+  const formattedDate = parts.length === 3 ? `${parts[1]}/${parts[2]}/${parts[0]}` : child3DOB;
+  pages[coords.child3DOB.page].drawText(formattedDate, {
+    x: coords.child3DOB.x,
+    y: coords.child3DOB.y,
+    size: 10,
+    font
+  });
+}
+
+const child3Residence = document.getElementById('child3Residence')?.value;
+if (child3Residence && coords.child3Residence) {
+  pages[coords.child3Residence.page].drawText(child3Residence, {
+    x: coords.child3Residence.x,
+    y: coords.child3Residence.y,
+    size: 10,
+    font
+  });
+}
+
+const child3Relationship = document.getElementById('child3Relationship')?.value;
+if (child3Relationship && coords.child3Relationship) {
+  pages[coords.child3Relationship.page].drawText(child3Relationship, {
+    x: coords.child3Relationship.x,
+    y: coords.child3Relationship.y,
+    size: 10,
+    font
+  });
+}
+
+const child3Support = document.querySelector('input[name="child3Support"]:checked')?.value;
+if (child3Support && coords.child3Support && coords.child3Support[child3Support]) {
+  const { page, x, y } = coords.child3Support[child3Support];
+  pages[page].drawText("X", { x, y, size: 10, font });
+}
+
+
+// Process Employment Information
+for (let i = 1; i <= 3; i++) {
+  const employerName = document.getElementById(`employment${i}Name`)?.value;
+  if (employerName && coords[`employment${i}Name`]) {
+    pages[coords[`employment${i}Name`].page].drawText(employerName, {
+      x: coords[`employment${i}Name`].x,
+      y: coords[`employment${i}Name`].y,
+      size: 10,
+      font
+    });
+  }
+
+  const cityTown = document.getElementById(`employment${i}CityTown`)?.value;
+  if (cityTown && coords[`employment${i}CityTown`]) {
+    pages[coords[`employment${i}CityTown`].page].drawText(cityTown, {
+      x: coords[`employment${i}CityTown`].x,
+      y: coords[`employment${i}CityTown`].y,
+      size: 10,
+      font
+    });
+  }
+
+	// Get state/province value (either from select or input)
+	let stateProvince = '';
+	const stateProvinceEl = document.getElementById(`employment${i}StateProvince`);
+	if (stateProvinceEl) {
+	  if (stateProvinceEl.tagName === 'SELECT') {
+		// Only get the value (state abbreviation) if it's not the default empty option
+		const selectedValue = stateProvinceEl.value;
+		stateProvince = (selectedValue !== '') ? selectedValue : '';
+	  } else {
+		stateProvince = stateProvinceEl.value;
+	  }
+	}
+
+	if (stateProvince && coords[`employment${i}StateProvince`]) {
+	  pages[coords[`employment${i}StateProvince`].page].drawText(stateProvince, {
+		x: coords[`employment${i}StateProvince`].x,
+		y: coords[`employment${i}StateProvince`].y,
+		size: 10,
+		font
+	  });
+	}
+
+  const zipPostal = document.getElementById(`employment${i}ZipPostal`)?.value;
+  if (zipPostal && coords[`employment${i}ZipPostal`]) {
+    pages[coords[`employment${i}ZipPostal`].page].drawText(zipPostal, {
+      x: coords[`employment${i}ZipPostal`].x,
+      y: coords[`employment${i}ZipPostal`].y,
+      size: 10,
+      font
+    });
+  }
+
+  // Get country value
+	const countryEl = document.getElementById(`employment${i}Country`);
+	let country = '';
+	if (countryEl) {
+	  // Get just the 2-letter country code from the value attribute
+	  country = countryEl.value;
+	}
+
+	if (country && coords[`employment${i}Country`]) {
+	  pages[coords[`employment${i}Country`].page].drawText(country, {
+		x: coords[`employment${i}Country`].x,
+		y: coords[`employment${i}Country`].y,
+		size: 10,
+		font
+	  });
+	}
+
+  // Handle dates
+  const dateFrom = document.getElementById(`employment${i}DateFrom`)?.value;
+  if (dateFrom && coords[`employment${i}DateFrom`]) {
+    const parts = dateFrom.split('-');
+    const formattedDateFrom = parts.length === 3 ? `${parts[1]}/${parts[2]}/${parts[0]}` : dateFrom;
+    pages[coords[`employment${i}DateFrom`].page].drawText(formattedDateFrom, {
+      x: coords[`employment${i}DateFrom`].x,
+      y: coords[`employment${i}DateFrom`].y,
+      size: 10,
+      font
+    });
+  }
+
+  let dateTo = '';
+  if (i === 1 && document.getElementById('employment1Present')?.checked) {
+    dateTo = 'PRESENT';
+  } else {
+    const dateToEl = document.getElementById(`employment${i}DateTo`);
+    if (dateToEl && dateToEl.value) {
+      const parts = dateToEl.value.split('-');
+      dateTo = parts.length === 3 ? `${parts[1]}/${parts[2]}/${parts[0]}` : dateToEl.value;
+    }
+  }
+  
+  if (dateTo && coords[`employment${i}DateTo`]) {
+    pages[coords[`employment${i}DateTo`].page].drawText(dateTo, {
+      x: coords[`employment${i}DateTo`].x,
+      y: coords[`employment${i}DateTo`].y,
+      size: 10,
+      font
+    });
+  }
+
+  const occupation = document.getElementById(`employment${i}Occupation`)?.value;
+  if (occupation && coords[`employment${i}Occupation`]) {
+    pages[coords[`employment${i}Occupation`].page].drawText(occupation, {
+      x: coords[`employment${i}Occupation`].x,
+      y: coords[`employment${i}Occupation`].y,
+      size: 10,
+      font
+    });
+  }
+}
+
+// Process Trip Information
+for (let i = 1; i <= 6; i++) {
+  const leftDate = document.getElementById(`trip${i}DateLeft`)?.value;
+  if (leftDate && coords[`trip${i}DateLeft`]) {
+    const parts = leftDate.split('-');
+    const formattedDate = parts.length === 3 ? `${parts[1]}/${parts[2]}/${parts[0]}` : leftDate;
+    pages[coords[`trip${i}DateLeft`].page].drawText(formattedDate, {
+      x: coords[`trip${i}DateLeft`].x,
+      y: coords[`trip${i}DateLeft`].y,
+      size: 10,
+      font
+    });
+  }
+
+  const returnDate = document.getElementById(`trip${i}DateReturned`)?.value;
+  if (returnDate && coords[`trip${i}DateReturned`]) {
+    const parts = returnDate.split('-');
+    const formattedDate = parts.length === 3 ? `${parts[1]}/${parts[2]}/${parts[0]}` : returnDate;
+    pages[coords[`trip${i}DateReturned`].page].drawText(formattedDate, {
+      x: coords[`trip${i}DateReturned`].x,
+      y: coords[`trip${i}DateReturned`].y,
+      size: 10,
+      font
+    });
+  }
+
+  const countryEl = document.getElementById(`trip${i}Countries`);
+  if (countryEl && countryEl.value && coords[`trip${i}Countries`]) {
+    // Get the text of the selected option
+    const selectedText = countryEl.options[countryEl.selectedIndex].text.replace(/\s*\([A-Z]{2}\)$/, '');
+    pages[coords[`trip${i}Countries`].page].drawText(selectedText, {
+      x: coords[`trip${i}Countries`].x,
+      y: coords[`trip${i}Countries`].y,
+      size: 10,
+      font
+    });
+  }
+}
+
+
+      
+      const pdfBytes = await pdfDoc.save();
+	  latestFilledPdfBytes = pdfBytes;
+
+      const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+      pdfPreview.src = URL.createObjectURL(blob);
+    }
+    
+    // Allow radio buttons to be deselected when clicked again.
+    document.querySelectorAll('input[type="radio"]').forEach((radio) => {
+      radio.addEventListener('mousedown', function() {
+        this.wasChecked = this.checked;
+      });
+      radio.addEventListener('click', function(e) {
+        if (this.wasChecked) {
+          this.checked = false;
+          this.wasChecked = false;
+          e.stopPropagation();
+        }
+      });
+    });
+	
+	function validateInputs() {
+  let errors = [];
+
+  // Validate A-Number (9 digits)
+  const aNumber = document.getElementById("aNumber")?.value.replace(/\D/g, "");
+  if (aNumber && aNumber.length !== 9) {
+    errors.push("A-Number must be exactly 9 digits.");
+  }
+
+  // Validate USCIS Online Account Number (12 digits)
+  const uscisAccount = document.getElementById("uscisAccount")?.value.replace(/\D/g, "");
+  if (uscisAccount && uscisAccount.length !== 12) {
+    errors.push("USCIS Online Account Number must be exactly 12 digits.");
+  }
+
+  // Validate Phone Number (10 digits)
+  const phone = document.getElementById("phone")?.value.replace(/\D/g, "");
+  if (phone && phone.length !== 10) {
+    errors.push("Phone number must be exactly 10 digits.");
+  }
+
+  // Validate SSN (9 digits)
+  const ssn = document.getElementById("ssn")?.value.replace(/\D/g, "");
+  if (ssn && ssn.length !== 9) {
+    errors.push("Social Security Number must be exactly 9 digits.");
+  }
+  
+// Validate ZIP (5 digits)
+const zip = document.getElementById("zip")?.value.replace(/\D/g, "");
+if (zip && zip.length !== 5) {
+  errors.push("ZIP code must be exactly 5 digits.");
+}
+
+
+  // Show error messages
+  const errorMessageDiv = document.getElementById("errorMessage");
+  if (errors.length > 0) {
+    errorMessageDiv.innerHTML = errors.join("<br>");
+    return false;
+  } else {
+    errorMessageDiv.innerHTML = "";
+    return true;
+  }
+}
+
+    
+updatePreviewBtn.addEventListener("click", async () => {
+  if (!validateInputs()) {
+    return;
+  }
+  await updatePreview();
+});
+
+    
+    loadPDF(formSelect.value);
+	
+	document.querySelectorAll('input[name="reason"]').forEach((input) => {
+		input.addEventListener("change", function () {
+		document.getElementById("dDetails").style.display = (this.value === "D") ? "block" : "none";
+		document.getElementById("gDetails").style.display = (this.value === "G") ? "block" : "none";
+	});
+	});
+	
+	
+    
+  </script>
+  
+
+
+
+<script>
+  const formFieldIds = [
+    //"firstName", "middleName", "lastName", "dob", "ssn", "aNumber",
+    //"phone", "email", "mailAddress", "mailCity", "mailCountry", "mailZip",
+    //"newFirstName", "newMiddleName", "newLastName", "uscisAccount","permanentResidentDate",
+	//"birthCountry", "citizenshipCountry", "heightFeet", "heightInches", "weight", "sex"
+
+  ];
+
+  function saveFormDataToLocalStorage() {
+    const data = {};
+    formFieldIds.forEach(id => {
+      const el = document.getElementById(id);
+      if (el) data[id] = el.value;
+    });
+
+    // Also handle radio button for legalNameChange
+    const legalNameChange = document.querySelector('input[name="legalNameChange"]:checked');
+    if (legalNameChange) data.legalNameChange = legalNameChange.value;
+
+    localStorage.setItem("uscisFormData", JSON.stringify(data));
+  }
+
+  function loadFormDataFromLocalStorage() {
+    const data = JSON.parse(localStorage.getItem("uscisFormData") || "{}");
+    formFieldIds.forEach(id => {
+      const el = document.getElementById(id);
+      if (el && data[id]) el.value = data[id];
+    });
+
+    // Restore radio button
+    if (data.legalNameChange) {
+      const radio = document.querySelector(`input[name="legalNameChange"][value="${data.legalNameChange}"]`);
+      if (radio) radio.checked = true;
+      document.getElementById("newLegalNameFields").style.display = (data.legalNameChange === "yes") ? "block" : "none";
+    }
+  }
+
+  // Hook into user interaction
+  window.addEventListener("DOMContentLoaded", () => {
+    loadFormDataFromLocalStorage();
+
+    const allInputs = document.querySelectorAll("input, select");
+    allInputs.forEach(input => {
+      input.addEventListener("input", saveFormDataToLocalStorage);
+      input.addEventListener("change", saveFormDataToLocalStorage);
+    });
+  });
+</script>
+
+<script>
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Enter") {
+      e.preventDefault(); // prevent form submission or accidental reload
+      const updateBtn = document.getElementById("updatePreviewBtn");
+      if (updateBtn) updateBtn.click();
+    }
+  });
+  
+</script>
+<script>
+	document.querySelectorAll(".collapsible-toggle").forEach(btn => {
+	  btn.addEventListener("click", () => {
+		const content = btn.closest(".collapsible-section").querySelector(".collapsible-content");
+		const collapsed = content.classList.toggle("collapsed");
+		btn.innerText = collapsed ? "Expand" : "Collapse";
+	  });
+	});
+</script>
+
+<script>
+// Show/hide 30b based on 30a selection
+function toggleQ30() {
+  const isYes = document.querySelector('input[name="q_30a"]:checked')?.value === 'yes';
+  document.getElementById('q30b-container').style.display = isYes ? 'block' : 'none';
+}
+
+document.querySelectorAll('input[name="q_30a"]').forEach(radio =>
+  radio.addEventListener('change', toggleQ30)
+);
+
+window.addEventListener('DOMContentLoaded', toggleQ30);
+</script>
+<script>
+
+  document.querySelectorAll('input[name="q_25"]').forEach(radio => {
+    radio.addEventListener('change', () => {
+      // show the follow‑up only if q_25 === "yes"
+      const showFollowUps = radio.value === 'yes';
+      ['q27-container', 'q28-container', 'q29-container']
+        .forEach(id => {
+          const el = document.getElementById(id);
+          if (el) el.style.display = showFollowUps ? 'block' : 'none';
+        });
+    });
+  });
+  // and run once on load to set the correct initial state
+  window.addEventListener('DOMContentLoaded', () => {
+    const checked = document.querySelector('input[name="q_25"]:checked');
+    if (checked) checked.dispatchEvent(new Event('change'));
+  });
+</script>
+
+<script>
+// Show/hide SSA sections depending on 12a answer
+document.querySelectorAll('input[name="q12_newcard"]').forEach((elem) => {
+  elem.addEventListener('change', function() {
+    const ssaNewCardSection = document.getElementById('ssaNewCardSection');
+    const ssaConsentSection = document.getElementById('ssaConsentSection');
+    const ssnFieldset = document.querySelector('#ssn')?.closest('fieldset');
+
+    if (this.value === "yes") {
+      if (ssaNewCardSection) ssaNewCardSection.style.display = 'block';
+      if (ssaConsentSection) ssaConsentSection.style.display = 'block';
+      if (ssnFieldset) ssnFieldset.style.display = 'block';
+    } else if (this.value === "no") {
+      if (ssaNewCardSection) ssaNewCardSection.style.display = 'none';
+      if (ssaConsentSection) ssaConsentSection.style.display = 'none';
+      if (ssnFieldset) ssnFieldset.style.display = 'none';
+    }
+  });
+});
+
+function toggleQ10Details() {
+  const yes = document.querySelector('input[name="q_10a"]:checked')?.value === 'yes';
+  document.getElementById('q10b-container').style.display = yes ? 'block' : 'none';
+  document.getElementById('q10c-container').style.display = yes ? 'block' : 'none';
+}
+
+document.querySelectorAll('input[name="q_10a"]').forEach(radio =>
+  radio.addEventListener('change', toggleQ10Details)
+);
+
+window.addEventListener('DOMContentLoaded', toggleQ10Details);
+
+
+//— show/hide 22b & 22c based on Q22a/Q22b —
+function toggleQ22Details() {
+  const aYes = document.querySelector('input[name="q_22a"]:checked')?.value === 'yes';
+  // show 22b only if q_22a = yes
+  document.getElementById('q22b-container').style.display = aYes ? 'block' : 'none';
+
+  const bYes = document.querySelector('input[name="q_22b"]:checked')?.value === 'yes';
+  // show 22c only if q_22b = yes
+  document.getElementById('q22c-container').style.display = bYes ? 'block' : 'none';
+}
+
+// hook up on-change events
+document.querySelectorAll('input[name="q_22a"]').forEach(radio =>
+  radio.addEventListener('change', toggleQ22Details)
+);
+document.querySelectorAll('input[name="q_22b"]').forEach(radio =>
+  radio.addEventListener('change', toggleQ22Details)
+);
+
+// — show all Q26a–d only if Q25 = “yes” —
+function toggleQ26Group() {
+  const yes = document.querySelector('input[name="q_25"]:checked')?.value === 'yes';
+  ['q26a-container','q26b-container','q26c-container','q26d-container'].forEach(id => {
+    document.getElementById(id).style.display = yes ? 'block' : 'none';
+  });
+}
+
+// Re‑run whenever Q25 changes
+document.querySelectorAll('input[name="q_25"]').forEach(radio =>
+  radio.addEventListener('change', toggleQ26Group)
+);
+
+// And once on page load to initialize
+window.addEventListener('DOMContentLoaded', toggleQ26Group);
+
+
+
+// initialize on page load
+window.addEventListener('DOMContentLoaded', () => {
+  toggleQ25();
+  toggleQ26a();
+});
+
+function toggleQ33() {
+  const yes = document.querySelector('input[name="q_33"]:checked')?.value === 'yes';
+  ['q34-container', 'q35-container', 'q36-container', 'q37-container']
+    .forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.style.display = yes ? 'none' : 'block';
+    });
+}
+
+// Attach listeners
+document.querySelectorAll('input[name="q_33"]').forEach(radio =>
+  radio.addEventListener('change', toggleQ33)
+);
+
+// Initialize on page load
+window.addEventListener('DOMContentLoaded', toggleQ33);
+
+// initialize on page load
+window.addEventListener('DOMContentLoaded', toggleQ22Details);
+
+
+
+// Initialize on page load
+window.addEventListener('DOMContentLoaded', () => {
+  const checked = document.querySelector('input[name="q12_newcard"]:checked');
+  const ssaNewCardSection = document.getElementById('ssaNewCardSection');
+  const ssaConsentSection = document.getElementById('ssaConsentSection');
+  const ssnFieldset = document.querySelector('#ssn')?.closest('fieldset');
+
+  if (!checked) {
+    // No radio button selected at page load — hide everything
+    if (ssaNewCardSection) ssaNewCardSection.style.display = 'none';
+    if (ssaConsentSection) ssaConsentSection.style.display = 'none';
+    if (ssnFieldset) ssnFieldset.style.display = 'none';
+  } else {
+    // If already selected, trigger behavior
+    checked.dispatchEvent(new Event('change'));
+  }
+});
+</script>
+
+<script>
+// Function to update New Mailing Address state field based on country selection
+function updateNewStateField() {
+  const newCountrySelect = document.getElementById('newMailCountry');
+  const newStateContainer = document.getElementById('newMailStateContainer');
+
+  if (newCountrySelect.value === "US") {
+    const select = document.createElement('select');
+    select.id = 'newMailState';
+select.innerHTML = `
+  <option value=""></option>
+  <option value="AL">Alabama</option>
+  <option value="AK">Alaska</option>
+  <option value="AZ">Arizona</option>
+  <option value="AR">Arkansas</option>
+  <option value="CA">California</option>
+  <option value="CO">Colorado</option>
+  <option value="CT">Connecticut</option>
+  <option value="DE">Delaware</option>
+  <option value="FL">Florida</option>
+  <option value="GA">Georgia</option>
+  <option value="HI">Hawaii</option>
+  <option value="ID">Idaho</option>
+  <option value="IL">Illinois</option>
+  <option value="IN">Indiana</option>
+  <option value="IA">Iowa</option>
+  <option value="KS">Kansas</option>
+  <option value="KY">Kentucky</option>
+  <option value="LA">Louisiana</option>
+  <option value="ME">Maine</option>
+  <option value="MD">Maryland</option>
+  <option value="MA">Massachusetts</option>
+  <option value="MI">Michigan</option>
+  <option value="MN">Minnesota</option>
+  <option value="MS">Mississippi</option>
+  <option value="MO">Missouri</option>
+  <option value="MT">Montana</option>
+  <option value="NE">Nebraska</option>
+  <option value="NV">Nevada</option>
+  <option value="NH">New Hampshire</option>
+  <option value="NJ">New Jersey</option>
+  <option value="NM">New Mexico</option>
+  <option value="NY">New York</option>
+  <option value="NC">North Carolina</option>
+  <option value="ND">North Dakota</option>
+  <option value="OH">Ohio</option>
+  <option value="OK">Oklahoma</option>
+  <option value="OR">Oregon</option>
+  <option value="PA">Pennsylvania</option>
+  <option value="RI">Rhode Island</option>
+  <option value="SC">South Carolina</option>
+  <option value="SD">South Dakota</option>
+  <option value="TN">Tennessee</option>
+  <option value="TX">Texas</option>
+  <option value="UT">Utah</option>
+  <option value="VT">Vermont</option>
+  <option value="VA">Virginia</option>
+  <option value="WA">Washington</option>
+  <option value="WV">West Virginia</option>
+  <option value="WI">Wisconsin</option>
+  <option value="WY">Wyoming</option>
+`;
+
+    newStateContainer.innerHTML = '';
+    newStateContainer.appendChild(select);
+  } else {
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.id = 'newMailState';
+    newStateContainer.innerHTML = '';
+    newStateContainer.appendChild(input);
+  }
+}
+
+// Attach the function to the country select change event
+document.getElementById('newMailCountry').addEventListener('change', updateNewStateField);
+
+// Initialize correct state field on page load
+window.addEventListener('DOMContentLoaded', () => {
+  if (document.getElementById('newMailCountry')) {
+    updateNewStateField();
+  }
+});
+</script>
+
+<script>
+// Show/hide Different Mailing Address fieldset based on sameAddress radio selection
+document.querySelectorAll('input[name="sameAddress"]').forEach((elem) => {
+  elem.addEventListener('change', function() {
+    const differentMailing = document.getElementById('differentMailingAddress');
+    if (this.value === "no") {
+      differentMailing.style.display = 'block';
+    } else {
+      differentMailing.style.display = 'none';
+    }
+  });
+});
+
+// Initialize on page load
+window.addEventListener('DOMContentLoaded', () => {
+  const checked = document.querySelector('input[name="sameAddress"]:checked');
+  if (checked && checked.value === "no") {
+    document.getElementById('differentMailingAddress').style.display = 'block';
+  }
+});
+</script>
+
+
+<script>
+// Handle "Add Another Trip" button functionality
+// Handle "Add Another Trip" button functionality
+document.addEventListener('DOMContentLoaded', function() {
+  const addTripBtn = document.getElementById('addTripBtn');
+  if (addTripBtn) {
+    addTripBtn.addEventListener('click', function() {
+      const travelEntries = document.querySelectorAll('.travel-entry');
+      
+      // Check if we've reached the maximum number of trips
+      if (travelEntries.length >= 6) {
+        alert('Maximum of 6 trips allowed.');
+        return;
+      }
+      
+      const nextTripNum = travelEntries.length + 1;
+      
+      const newEntry = document.createElement('div');
+      newEntry.className = 'travel-entry';
+      newEntry.innerHTML = `
+        <div class="travel-header">
+          <h4>Trip ${nextTripNum}</h4>
+          <button type="button" class="removeTripBtn">Remove</button>
+        </div>
+        <div class="travel-grid">
+          <div class="grid-item">
+            <label for="trip${nextTripNum}DateLeft">Date You Left the United States:</label>
+            <input type="date" id="trip${nextTripNum}DateLeft">
+          </div>
+          <div class="grid-item">
+            <label for="trip${nextTripNum}DateReturned">Date You Returned to the United States:</label>
+            <input type="date" id="trip${nextTripNum}DateReturned">
+          </div>
+          <div class="grid-item">
+            <label for="trip${nextTripNum}Countries">Countries to Which You Traveled:</label>
+            <select id="trip${nextTripNum}Countries">
+              <option value="">--Select Country--</option>
+              <!-- Country options will be copied below -->
+            </select>
+          </div>
+        </div>
+      `;
+      
+      // Insert the new entry before the "Add Another Trip" button
+      this.parentNode.insertBefore(newEntry, this);
+      
+      // Copy the country options from the first trip's country select
+      const firstTripCountries = document.getElementById('trip1Countries');
+      const newTripCountries = document.getElementById(`trip${nextTripNum}Countries`);
+      
+      if (firstTripCountries && newTripCountries) {
+        Array.from(firstTripCountries.options).forEach(option => {
+          newTripCountries.appendChild(option.cloneNode(true));
+        });
+      }
+      
+      // Add event listener to the remove button
+      const removeBtn = newEntry.querySelector('.removeTripBtn');
+      if (removeBtn) {
+        removeBtn.addEventListener('click', function() {
+          newEntry.remove();
+          // Renumber the trips
+          document.querySelectorAll('.travel-entry').forEach((entry, index) => {
+            const headingEl = entry.querySelector('h4');
+            if (headingEl) {
+              headingEl.textContent = `Trip ${index + 1}${index === 0 ? ' (Most Recent)' : ''}`;
+            }
+          });
+        });
+      }
+    });
+  }
+  
+  // Add event listeners to existing remove buttons
+  document.querySelectorAll('.removeTripBtn').forEach(btn => {
+    btn.addEventListener('click', function() {
+      const entry = this.closest('.travel-entry');
+      if (entry) {
+        entry.remove();
+        // Renumber the trips
+        document.querySelectorAll('.travel-entry').forEach((entry, index) => {
+          const headingEl = entry.querySelector('h4');
+          if (headingEl) {
+            headingEl.textContent = `Trip ${index + 1}${index === 0 ? ' (Most Recent)' : ''}`;
+          }
+        });
+      }
+    });
+  });
+});
+</script>
+
+<script>
+// Function to update the different mailing address state field based on selected country
+function updateNewStateField() {
+  const newCountrySelect = document.getElementById('newMailCountry');
+  const newStateContainer = document.getElementById('newMailStateContainer');
+
+  if (!newCountrySelect || !newStateContainer) return;
+
+  if (newCountrySelect.value === "US") {
+    const select = document.createElement('select');
+    select.id = 'newMailState';
+    select.innerHTML = `
+	  <option value=""></option>
+      <option value="AL">Alabama</option>
+      <option value="AK">Alaska</option>
+      <option value="AZ">Arizona</option>
+      <option value="AR">Arkansas</option>
+      <option value="CA">California</option>
+      <option value="CO">Colorado</option>
+      <option value="CT">Connecticut</option>
+      <option value="DE">Delaware</option>
+      <option value="FL">Florida</option>
+      <option value="GA">Georgia</option>
+      <option value="HI">Hawaii</option>
+      <option value="ID">Idaho</option>
+      <option value="IL">Illinois</option>
+      <option value="IN">Indiana</option>
+      <option value="IA">Iowa</option>
+      <option value="KS">Kansas</option>
+      <option value="KY">Kentucky</option>
+      <option value="LA">Louisiana</option>
+      <option value="ME">Maine</option>
+      <option value="MD">Maryland</option>
+      <option value="MA">Massachusetts</option>
+      <option value="MI">Michigan</option>
+      <option value="MN">Minnesota</option>
+      <option value="MS">Mississippi</option>
+      <option value="MO">Missouri</option>
+      <option value="MT">Montana</option>
+      <option value="NE">Nebraska</option>
+      <option value="NV">Nevada</option>
+      <option value="NH">New Hampshire</option>
+      <option value="NJ">New Jersey</option>
+      <option value="NM">New Mexico</option>
+      <option value="NY">New York</option>
+      <option value="NC">North Carolina</option>
+      <option value="ND">North Dakota</option>
+      <option value="OH">Ohio</option>
+      <option value="OK">Oklahoma</option>
+      <option value="OR">Oregon</option>
+      <option value="PA">Pennsylvania</option>
+      <option value="RI">Rhode Island</option>
+      <option value="SC">South Carolina</option>
+      <option value="SD">South Dakota</option>
+      <option value="TN">Tennessee</option>
+      <option value="TX">Texas</option>
+      <option value="UT">Utah</option>
+      <option value="VT">Vermont</option>
+      <option value="VA">Virginia</option>
+      <option value="WA">Washington</option>
+      <option value="WV">West Virginia</option>
+      <option value="WI">Wisconsin</option>
+      <option value="WY">Wyoming</option>
+    `;
+    newStateContainer.innerHTML = '';
+    newStateContainer.appendChild(select);
+  } else {
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.id = 'newMailState';
+    newStateContainer.innerHTML = '';
+    newStateContainer.appendChild(input);
+  }
+}
+function toggleSpouseCitizenDate() {
+  const show = document.querySelector('input[name="spouseCitizenByBirth"]:checked')?.value === 'other';
+  document.getElementById('spouse-citizen-date-container').style.display = show ? 'block' : 'none';
+}
+
+document.querySelectorAll('input[name="spouseCitizenByBirth"]').forEach(r =>
+  r.addEventListener('change', toggleSpouseCitizenDate)
+);
+
+window.addEventListener('DOMContentLoaded', toggleSpouseCitizenDate);
+
+
+
+// Attach it to listen for changes on newMailCountry
+document.getElementById('newMailCountry').addEventListener('change', updateNewStateField);
+
+// Also initialize it when the page first loads
+window.addEventListener('DOMContentLoaded', () => {
+  if (document.getElementById('newMailCountry')) {
+    updateNewStateField();
+  }
+});
+
+
+function toggleQ25() {
+  const served = document.querySelector('input[name="q_25"]:checked')?.value === 'yes';
+
+  // Show or hide Q26a–d based on Q25
+  ['q26a-container', 'q26b-container', 'q26c-container', 'q26d-container'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = served ? 'block' : 'none';
+  });
+
+  // Also show/hide Q27–Q29 based on Q25
+  ['q27-container', 'q28-container', 'q29-container'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = served ? 'block' : 'none';
+  });
+}
+
+function toggleQ26a() {
+  const member = document.querySelector('input[name="q_26a"]:checked')?.value === 'yes';
+
+  // Show 26b and 26c if yes, hide 26d
+  document.getElementById('q26b-container').style.display = member ? 'block' : 'none';
+  document.getElementById('q26c-container').style.display = member ? 'block' : 'none';
+  document.getElementById('q26d-container').style.display = member ? 'none'  : 'block';
+}
+
+// Handle Fee Reduction radio button logic
+document.querySelectorAll('input[name="feeReduction"]').forEach(function(radio) {
+  radio.addEventListener('change', function() {
+    if (this.value === 'yes') {
+      document.getElementById('feeReductionDetails').style.display = 'block';
+    } else {
+      document.getElementById('feeReductionDetails').style.display = 'none';
+    }
+  });
+});
+
+// Handle head of household radio button logic
+document.querySelectorAll('input[name="headOfHousehold"]').forEach(function(radio) {
+  radio.addEventListener('change', function() {
+    if (this.value === 'no') {
+      document.getElementById('headOfHouseholdName').style.display = 'block';
+    } else {
+      document.getElementById('headOfHouseholdName').style.display = 'none';
+    }
+  });
+});
+
+
+// Function to update employment state fields based on country selection
+function updateEmploymentStateField(index) {
+  const countrySelect = document.getElementById(`employment${index}Country`);
+  const stateContainer = document.getElementById(`employment${index}StateProvinceContainer`);
+  
+  if (!countrySelect || !stateContainer) return;
+  
+  if (countrySelect.value === "US") {
+    const select = document.createElement('select');
+    select.id = `employment${index}StateProvince`;
+    select.innerHTML = `
+      <option value="">--Select State--</option>
+      <option value="AL">Alabama</option>
+      <option value="AK">Alaska</option>
+      <option value="AZ">Arizona</option>
+      <option value="AR">Arkansas</option>
+      <option value="CA">California</option>
+      <option value="CO">Colorado</option>
+      <option value="CT">Connecticut</option>
+      <option value="DE">Delaware</option>
+      <option value="FL">Florida</option>
+      <option value="GA">Georgia</option>
+      <option value="HI">Hawaii</option>
+      <option value="ID">Idaho</option>
+      <option value="IL">Illinois</option>
+      <option value="IN">Indiana</option>
+      <option value="IA">Iowa</option>
+      <option value="KS">Kansas</option>
+      <option value="KY">Kentucky</option>
+      <option value="LA">Louisiana</option>
+      <option value="ME">Maine</option>
+      <option value="MD">Maryland</option>
+      <option value="MA">Massachusetts</option>
+      <option value="MI">Michigan</option>
+      <option value="MN">Minnesota</option>
+      <option value="MS">Mississippi</option>
+      <option value="MO">Missouri</option>
+      <option value="MT">Montana</option>
+      <option value="NE">Nebraska</option>
+      <option value="NV">Nevada</option>
+      <option value="NH">New Hampshire</option>
+      <option value="NJ">New Jersey</option>
+      <option value="NM">New Mexico</option>
+      <option value="NY">New York</option>
+      <option value="NC">North Carolina</option>
+      <option value="ND">North Dakota</option>
+      <option value="OH">Ohio</option>
+      <option value="OK">Oklahoma</option>
+      <option value="OR">Oregon</option>
+      <option value="PA">Pennsylvania</option>
+      <option value="RI">Rhode Island</option>
+      <option value="SC">South Carolina</option>
+      <option value="SD">South Dakota</option>
+      <option value="TN">Tennessee</option>
+      <option value="TX">Texas</option>
+      <option value="UT">Utah</option>
+      <option value="VT">Vermont</option>
+      <option value="VA">Virginia</option>
+      <option value="WA">Washington</option>
+      <option value="WV">West Virginia</option>
+      <option value="WI">Wisconsin</option>
+      <option value="WY">Wyoming</option>
+    `;
+    stateContainer.innerHTML = '';
+    stateContainer.appendChild(select);
+  } else {
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.id = `employment${index}StateProvince`;
+    stateContainer.innerHTML = '';
+    stateContainer.appendChild(input);
+  }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  // Setup for each employment entry
+  for (let i = 1; i <= 3; i++) {
+    updateEmploymentStateField(i);
+    
+    const countrySelect = document.getElementById(`employment${i}Country`);
+    if (countrySelect) {
+      countrySelect.addEventListener('change', function() {
+        updateEmploymentStateField(i);
+      });
+    }
+    
+
+  }
+});
+
+// Add validation for spouse A-Number
+document.addEventListener('DOMContentLoaded', function() {
+  const spouseANumberInput = document.querySelector('input[name="spouseANumber"]');
+  if (spouseANumberInput) {
+    // Create error message element if it doesn't exist
+    let errorElement = document.createElement('span');
+    errorElement.id = 'spouseANumberError';
+    errorElement.style.color = 'red';
+    errorElement.style.display = 'block';
+    errorElement.style.marginTop = '5px';
+    spouseANumberInput.parentNode.appendChild(errorElement);
+
+    // Format and validate A-Number on input
+    spouseANumberInput.addEventListener("input", function() {
+      let raw = this.value.replace(/\D/g, ""); // Remove non-digits
+      if (raw.length > 9) raw = raw.slice(0, 9);
+
+      // Format with dashes
+      let formatted = raw.replace(/^(\d{3})(\d{0,3})(\d{0,3})$/, function(_, a, b, c) {
+        let result = a;
+        if (b) result += "-" + b;
+        if (c) result += "-" + c;
+        return result;
+      });
+
+      this.value = formatted;
+      
+      // Validate and show error if needed
+      if (raw.length > 0 && raw.length < 9) {
+        errorElement.textContent = "A-Number must be exactly 9 digits.";
+      } else {
+        errorElement.textContent = "";
+      }
+    });
+  }
+});
+
+
+
+// Format phone numbers for interpreter and preparer
+document.addEventListener('DOMContentLoaded', function() {
+  const phoneFields = [
+    'interpreterDaytimePhone', 
+    'interpreterMobilePhone', 
+    'preparerDaytimePhone', 
+    'preparerMobilePhone'
+  ];
+  
+  phoneFields.forEach(fieldId => {
+    const phoneInput = document.getElementById(fieldId);
+    if (phoneInput) {
+      phoneInput.addEventListener("input", function() {
+        let digits = this.value.replace(/\D/g, '').substring(0, 10);
+        if (digits.length > 6) {
+          this.value = digits.slice(0, 3) + "-" + digits.slice(3, 6) + "-" + digits.slice(6);
+        } else if (digits.length > 3) {
+          this.value = digits.slice(0, 3) + "-" + digits.slice(3);
+        } else {
+          this.value = digits;
+        }
+      });
+    }
+  });
+});
+
+
+// Make all sections collapsed by default
+document.addEventListener('DOMContentLoaded', function() {
+  // Add the 'collapsed' class to all collapsible content sections
+  document.querySelectorAll('.collapsible-content').forEach(content => {
+    content.classList.add('collapsed');
+  });
+  
+  // Update all toggle buttons to say "Expand"
+  document.querySelectorAll('.collapsible-toggle').forEach(btn => {
+    btn.innerText = "Expand";
+  });
+  
+  // Also collapse the questions section if it exists
+  const questionsContent = document.getElementById('questionsContent');
+  if (questionsContent) {
+    questionsContent.classList.add('collapsed');
+    const toggleBtn = document.getElementById('toggleQuestions');
+    if (toggleBtn) {
+      toggleBtn.innerText = "Expand";
+    }
+  }
+});
+
+function toggleMaritalQuestions() {
+  const maritalStatus = document.querySelector('input[name="maritalStatus"]:checked')?.value;
+  const marriedInfo = document.getElementById('marriedInfo');
+  
+  // Handle if nothing is selected
+  if (!maritalStatus) {
+    if (marriedInfo) marriedInfo.style.display = 'none';
+    return;
+  }
+  
+  // For single status, hide all marriage info
+  if (maritalStatus === 'single') {
+    if (marriedInfo) marriedInfo.style.display = 'none';
+    return;
+  }
+  
+  // Show marriage info container for all other statuses
+  if (marriedInfo) marriedInfo.style.display = 'block';
+  
+  // Find question 2 about spouse in armed forces - using standard DOM methods
+  const allFieldsets = document.querySelectorAll('fieldset');
+  allFieldsets.forEach(fieldset => {
+    const legend = fieldset.querySelector('legend');
+    if (legend && legend.textContent.includes('2. If you are currently married')) {
+      fieldset.style.display = (maritalStatus === 'married' || maritalStatus === 'separated') 
+        ? 'block' : 'none';
+    }
+  });
+  
+  // Find questions 4.a through 4.d using standard DOM methods
+  const allQuestions = document.querySelectorAll('.question');
+  allQuestions.forEach(question => {
+    const paragraph = question.querySelector('p');
+    if (paragraph && 
+        (paragraph.textContent.includes('4.a.') || 
+         paragraph.textContent.includes('4.b.') || 
+         paragraph.textContent.includes('4.c.') || 
+         paragraph.textContent.includes('4.d.'))) {
+      question.style.display = (maritalStatus === 'married' || maritalStatus === 'separated') 
+        ? 'block' : 'none';
+    }
+  });
+  
+  // Question 3 (marriage count) is handled as part of the marriedInfo container
+}
+
+
+  function createStateDropdown(containerId, selectId) {
+    const states = [
+      "AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA",
+      "HI", "ID", "IL", "IN", "IA", "KS", "KY", "LA", "ME", "MD",
+      "MA", "MI", "MN", "MS", "MO", "MT", "NE", "NV", "NH", "NJ",
+      "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI", "SC",
+      "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV", "WI", "WY"
+    ];
+
+    const container = document.getElementById(containerId);
+    container.innerHTML = ''; // Clear any existing content
+
+    const select = document.createElement("select");
+    select.id = selectId;
+
+    const defaultOption = document.createElement("option");
+    defaultOption.value = "";
+    defaultOption.textContent = "-- Select State --";
+    select.appendChild(defaultOption);
+
+    states.forEach(state => {
+      const option = document.createElement("option");
+      option.value = state;
+      option.textContent = state;
+      select.appendChild(option);
+    });
+
+    container.appendChild(select);
+  }
+
+  // Hook into form selection change
+  document.addEventListener("DOMContentLoaded", () => {
+    const formSelect = document.getElementById("formSelect");
+    formSelect.addEventListener("change", () => {
+      if (formSelect.value === "ar11_conv.pdf") {
+        createStateDropdown("prevStateContainer", "prevState");
+      }
+    });
+
+    // Also run it once at page load if AR-11 is already selected
+    if (formSelect.value === "ar11_conv.pdf") {
+      createStateDropdown("prevStateContainer", "prevState");
+    }
+  });
+  
+
+</script>
+
+
+
+
+
+</body>
+</html>
